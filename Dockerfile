@@ -16,7 +16,7 @@ WORKDIR /app
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
     && apt-get autoremove -y \
-    && apt-get clone -y \
+    && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/zero2prod zero2prod
