@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
-use sqlx::{types::Uuid, PgPool};
 use chrono::Utc;
+use sqlx::{types::Uuid, PgPool};
 
 #[derive(serde::Deserialize)]
 pub struct SubscribeFormData {
@@ -8,15 +8,8 @@ pub struct SubscribeFormData {
     name: String,
 }
 
-#[tracing::instrument(
-    name = "Saving new subscriber details to db",
-    skip(pool, form)
-
-)]
-async fn insert_subscriber(
-    pool: &PgPool,
-    form: &SubscribeFormData
-) -> Result<(), sqlx::Error> {
+#[tracing::instrument(name = "Saving new subscriber details to db", skip(pool, form))]
+async fn insert_subscriber(pool: &PgPool, form: &SubscribeFormData) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -46,14 +39,13 @@ async fn insert_subscriber(
 )]
 pub async fn subscribe(
     form: web::Form<SubscribeFormData>,
-    pool: web::Data<PgPool>) -> impl Responder {
-    match insert_subscriber(
-        &pool, &form,
-    ).await {
+    pool: web::Data<PgPool>,
+) -> impl Responder {
+    match insert_subscriber(&pool, &form).await {
         Ok(_) => {
             tracing::info!("New subscriber saved!");
             HttpResponse::Ok().finish()
-        },
+        }
         Err(e) => {
             tracing::error!("Failed to execute insert query: {:?}", e);
             HttpResponse::InternalServerError().finish()
