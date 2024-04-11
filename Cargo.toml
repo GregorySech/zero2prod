@@ -30,6 +30,7 @@ tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
 unicode-segmentation = "1.11.0"
 uuid = { version = "1.8.0", features = ["v4"] }
+validator = "0.18.0"
 
 [dependencies.sqlx]
 version = "0.7"
