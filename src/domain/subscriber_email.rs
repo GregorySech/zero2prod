@@ -18,7 +18,6 @@ impl AsRef<str> for SubscriberEmail {
         &self.0
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::SubscriberEmail;
@@ -31,13 +30,12 @@ mod tests {
         let email = "".to_string();
         assert_err!(SubscriberEmail::parse(email));
     }
-    
+
     #[test]
     fn email_missing_at_symbol_is_rejected() {
         let email = "greg.domain.com".to_string();
         assert_err!(SubscriberEmail::parse(email));
     }
-
 
     #[test]
     fn email_missing_subject_is_rejected() {
@@ -49,5 +47,21 @@ mod tests {
     fn email_accepted_when_valid() {
         let email = SafeEmail().fake();
         assert_ok!(SubscriberEmail::parse(email));
+    }
+
+    use proptest::prelude::*;
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
+
+    proptest! {
+        #[test]
+        fn accepted_generated(
+            fake_email in any::<u64>().prop_map(|seed| {
+                let mut rng = StdRng::seed_from_u64(seed);
+                SafeEmail().fake_with_rng(&mut rng)
+            })
+        ) {
+            prop_assert!(SubscriberEmail::parse(fake_email).is_ok());
+        }
     }
 }
