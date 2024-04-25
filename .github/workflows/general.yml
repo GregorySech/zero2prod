@@ -69,7 +69,7 @@ jobs:
       image: xd009642/tarpaulin
       options: --security-opt seccomp=unconfined
     services:
-      postgres:
+      postgres_service:
         image: postgres
         env:
           POSTGRES_USER: postgres
@@ -83,7 +83,7 @@ jobs:
         ports:
           - 5432:5432
     env:
-      DATABASE_URL: postgres://postgres:password@localhost:5432/newsletter
+      DATABASE_URL: postgres://postgres:password@postgres_service:5432/newsletter
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
