@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install sqlx
+        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
       - name: Create db
         run: sqlx database create
       - name: Migrate db
