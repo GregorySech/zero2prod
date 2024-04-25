@@ -4,15 +4,29 @@ This is my implementation of the Mailing List project of the Zero to Production 
 
 The project objective is to showcase various themes of software engineering for backend services using the Rust language and the Actix HTTP framework with its crates ecosystem.
 
-The topics are:
-1. Testing 
+Table of contents:
+1. Features
+   1. Backend healthcheck
+   2. Subscriber registration
+      1. Input validation
+      2. User confirmation
+2. Testing 
    1. integration testing using reqwest.
    2. unit testing locally using Rust's modules.
    3. parametric testing using proptest.
-2. Type-driven development for data sanitization.
 3. Continuous Integration using GitHub Actions.
 4. Code instrumentation.
 5. Containerization and Deployment with Docker and Digital Ocean.
+
+# Features
+## Backend healthcheck
+TODO: write about the /healthcheck endpoint
+## Subscriber registration
+TODO: write about the /subscriptions endpoint
+### Input validation
+TODO: write about data sanitization
+### User confirmation
+TODO: write about API interaction
 
 # Testing
 Zero to Production philosophy is to follow the test-driven development approach to go from definition of any requirement to a minimal implementation that satisfies it.  
