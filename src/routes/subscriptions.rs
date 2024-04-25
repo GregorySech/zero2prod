@@ -1,7 +1,7 @@
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
 use sqlx::{types::Uuid, PgPool};
-use crate::domain::{NewSubscriber, SubscriberName, SubscriberEmail};
 
 #[derive(serde::Deserialize)]
 pub struct SubscribeFormData {
@@ -9,8 +9,14 @@ pub struct SubscribeFormData {
     name: String,
 }
 
-#[tracing::instrument(name = "Saving new subscriber details to db", skip(pool, new_subscriber))]
-async fn insert_subscriber(pool: &PgPool, new_subscriber: &NewSubscriber) -> Result<(), sqlx::Error> {
+#[tracing::instrument(
+    name = "Saving new subscriber details to db",
+    skip(pool, new_subscriber)
+)]
+async fn insert_subscriber(
+    pool: &PgPool,
+    new_subscriber: &NewSubscriber,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -53,12 +59,11 @@ pub async fn subscribe(
     form: web::Form<SubscribeFormData>,
     pool: web::Data<PgPool>,
 ) -> impl Responder {
-
     let new_subscriber = match form.0.try_into() {
         Err(_) => return HttpResponse::BadRequest().finish(),
         Ok(subscriber) => subscriber,
     };
-    
+
     match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => {
             tracing::info!("New subscriber saved!");
