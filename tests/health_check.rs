@@ -1,10 +1,12 @@
 use std::net::TcpListener;
 
 use once_cell::sync::Lazy;
+use secrecy::Secret;
 use sqlx::{types::Uuid, Connection, Executor, PgConnection, PgPool};
 
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
+    email_client::EmailAPIClient,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -147,8 +149,20 @@ async fn spawn_app() -> TestApp {
 
     let connection_pool = configure_database(&configuration.database).await;
 
-    let server =
-        zero2prod::startup::run(listener, connection_pool.clone()).expect("Failed to bind address");
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address.");
+    let timeout = configuration.email_client.timeout();
+    let email_client = EmailAPIClient::new(
+        configuration.email_client.api_base_url,
+        sender_email,
+        Secret::new(configuration.email_client.authorization_token),
+        timeout,
+    );
+
+    let server = zero2prod::startup::run(listener, connection_pool.clone(), email_client)
+        .expect("Failed to bind address");
 
     tokio::spawn(server);
 
