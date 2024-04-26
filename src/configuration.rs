@@ -7,14 +7,14 @@ use sqlx::ConnectOptions;
 
 use crate::domain::SubscriberEmail;
 
-#[derive(serde::Deserialize)]
-pub struct Settings {
-    pub application: ApplicationSettings,
-    pub database: DatabaseSettings,
-    pub email_client: EmailAPIClientSettings,
+#[derive(serde::Deserialize, Clone)]
+pub struct ApplicationSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub port: u16,
+    pub host: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct DatabaseSettings {
     pub username: String,
     pub password: Secret<String>,
@@ -25,12 +25,19 @@ pub struct DatabaseSettings {
     pub require_ssl: bool,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct EmailAPIClientSettings {
     pub api_base_url: String,
     pub sender_email: String,
     pub authorization_token: String,
     pub timeout_milliseconds: u64,
+}
+
+#[derive(serde::Deserialize, Clone)]
+pub struct Settings {
+    pub application: ApplicationSettings,
+    pub database: DatabaseSettings,
+    pub email_client: EmailAPIClientSettings,
 }
 
 impl EmailAPIClientSettings {
@@ -70,13 +77,6 @@ impl TryFrom<String> for Environment {
             )),
         }
     }
-}
-
-#[derive(serde::Deserialize)]
-pub struct ApplicationSettings {
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub port: u16,
-    pub host: String,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
