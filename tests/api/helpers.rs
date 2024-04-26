@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 
+use reqwest::Response;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use zero2prod::{
@@ -11,6 +12,20 @@ use zero2prod::{
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
+}
+
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: String) -> Response {
+        let expect_body = format!("Failed to execute subscriptions request for body {}.", body);
+
+        reqwest::Client::new()
+            .post(&format!("{}/subscriptions", &self.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect(&expect_body)
+    }
 }
 
 pub async fn spawn_app() -> TestApp {
