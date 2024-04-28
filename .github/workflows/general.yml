@@ -65,34 +65,30 @@ jobs:
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
-    container:
-      image: xd009642/tarpaulin
-      options: --security-opt seccomp=unconfined
     services:
-      postgres_service:
-        image: postgres
+      postgres:
+        image: postgres:12
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: newsletter
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
-    env:
-      DATABASE_URL: postgres://postgres:password@postgres_service:5432/newsletter
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install sqlx
-        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
-      - name: Create db
-        run: sqlx database create
-      - name: Migrate db
-        run: sqlx migrate run
-      - name: Generate code coverage
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Migrate database
         run: |
-          cargo tarpaulin --verbose --workspace
+          cargo install sqlx-cli --no-default-features --features postgres
+          SKIP_DOCKER=true ./scripts/init_db.sh
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          args: '--ignore-tests'
