@@ -92,9 +92,9 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - name: Migrate database
+      - name: Migrate DB
         run: |
-          cargo install sqlx-cli --no-default-features --features postgres
+          cargo install sqlx-cli --no-default-features --features rustls,postgres
           sqlx database create
           sqlx migrate run
       - name: Generate code coverage
