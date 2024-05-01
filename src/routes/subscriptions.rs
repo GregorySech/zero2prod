@@ -1,4 +1,7 @@
-use crate::{domain::{NewSubscriber, SubscriberEmail, SubscriberName}, email_client::EmailAPIClient};
+use crate::{
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    email_client::EmailAPIClient,
+};
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
 use sqlx::{types::Uuid, PgPool};
@@ -48,6 +51,34 @@ impl TryFrom<SubscribeFormData> for NewSubscriber {
 }
 
 #[tracing::instrument(
+    name = "Send a confirmation email to a new subscriber",
+    skip(email_client, new_subscriber)
+)]
+async fn send_confirmation_email(
+    email_client: &EmailAPIClient,
+    new_subscriber: NewSubscriber,
+) -> Result<(), reqwest::Error> {
+    let confirmation_link = "https://fakedomain.com/subscriptions/confirm";
+    let html_content = format!(
+        "Welcome to our newsletter! <br/> Click <a href=\"{}\">here</a> to confirm your subscription.",
+        confirmation_link
+    );
+    let text_content = format!(
+        "Welcome to our newsletter! Visit {} to confirm your subscription.",
+        confirmation_link
+    );
+
+    email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome",
+            &html_content,
+            &text_content,
+        )
+        .await
+}
+
+#[tracing::instrument(
     name = "Adding a new subscriber",
     skip(form, pool, email_client),
     fields(
@@ -69,11 +100,12 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if email_client.send_email(new_subscriber.email, "Welcome!", "Welcome to our newsletter!", "Welcome to our newsletter!").await.is_err() {
+    if send_confirmation_email(email_client.as_ref(), new_subscriber)
+        .await
+        .is_err()
+    {
         return HttpResponse::InternalServerError().finish();
     }
-    
+
     HttpResponse::Ok().finish()
-
 }
-

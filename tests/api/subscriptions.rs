@@ -75,6 +75,8 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     }
 }
 
+/// Checking if a confirmation email is sent when the subscription endpoint is 
+/// hit with a valid body.
 #[tokio::test]
 async fn subscribe_sends_a_confirmation_email_for_valid_data() {
     let app = spawn_app().await;
@@ -88,4 +90,21 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
         .await;
 
     app.post_subscriptions(body.into()).await;
+
+    let email_request = &app.email_server.received_requests().await.unwrap()[0];
+
+    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+    let get_link = |s: &str| {
+        let links: Vec<linkify::Link<'_>> = linkify::LinkFinder::new()
+            .links(s)
+            .filter(|l| *l.kind() == linkify::LinkKind::Url)
+            .collect();
+        assert_eq!(links.len(), 1, "There should be at least one link!");
+        links.first().unwrap().as_str().to_owned()
+    };
+
+    let html_link = get_link(body["HtmlBody"].as_str().unwrap());
+    let text_link = get_link(body["TextBody"].as_str().unwrap());
+    assert_eq!(html_link, text_link);
 }
