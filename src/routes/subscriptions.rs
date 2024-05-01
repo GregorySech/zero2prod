@@ -58,6 +58,9 @@ async fn send_confirmation_email(
     email_client: &EmailAPIClient,
     new_subscriber: NewSubscriber,
 ) -> Result<(), reqwest::Error> {
+    // TODO change the confirmation link logic:
+    // link should get a domain from app configuration
+    // link should get a registration token baked-in.
     let confirmation_link = "https://fakedomain.com/subscriptions/confirm";
     let html_content = format!(
         "Welcome to our newsletter! <br/> Click <a href=\"{}\">here</a> to confirm your subscription.",
