@@ -1,6 +1,6 @@
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
-    email_client::EmailAPIClient,
+    email_client::EmailAPIClient, startup::ApplicationBaseUrl,
 };
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
@@ -52,16 +52,17 @@ impl TryFrom<SubscribeFormData> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
-    skip(email_client, new_subscriber)
+    skip(email_client, new_subscriber, base_url)
 )]
 async fn send_confirmation_email(
     email_client: &EmailAPIClient,
     new_subscriber: NewSubscriber,
+    base_url: &str,
 ) -> Result<(), reqwest::Error> {
     // TODO change the confirmation link logic:
     // link should get a domain from app configuration
     // link should get a registration token baked-in.
-    let confirmation_link = "https://fakedomain.com/subscriptions/confirm";
+    let confirmation_link = format!("{}/subscriptions/confirm?subscription_token=faketoken", base_url);
     let html_content = format!(
         "Welcome to our newsletter! <br/> Click <a href=\"{}\">here</a> to confirm your subscription.",
         confirmation_link
@@ -83,7 +84,7 @@ async fn send_confirmation_email(
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, pool, email_client),
+    skip(form, pool, email_client, base_url),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name
@@ -93,6 +94,7 @@ pub async fn subscribe(
     form: web::Form<SubscribeFormData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailAPIClient>,
+    base_url: web::Data<ApplicationBaseUrl>
 ) -> impl Responder {
     let new_subscriber = match form.0.try_into() {
         Err(_) => return HttpResponse::BadRequest().finish(),
@@ -103,7 +105,7 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if send_confirmation_email(email_client.as_ref(), new_subscriber)
+    if send_confirmation_email(email_client.as_ref(), new_subscriber, &base_url.0)
         .await
         .is_err()
     {
