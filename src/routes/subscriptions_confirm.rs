@@ -50,6 +50,7 @@ async fn confirm_subscriber(subscriber_id: Uuid, pool: &PgPool) -> Result<(), sq
     Ok(())
 }
 
+/// Endpoint for the subscription confirmation token. Checks if the subscription token is associated with a subscription and confirms is.
 #[tracing::instrument(name = "Confirm a pending subscriber", skip(_parameters))]
 pub async fn confirm(
     _parameters: Query<ConfirmationParameters>,
