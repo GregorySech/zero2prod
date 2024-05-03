@@ -1,5 +1,3 @@
-use std::os::unix::thread;
-
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailAPIClient,
@@ -9,8 +7,6 @@ use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use sqlx::{types::Uuid, PgPool};
-
-use super::ConfirmationParameters;
 
 #[derive(serde::Deserialize)]
 pub struct SubscribeFormData {
@@ -116,9 +112,7 @@ async fn send_confirmation_email(
         .await
 }
 
-#[tracing::instrument(
-    name = "Generating subscription token"
-)]
+#[tracing::instrument(name = "Generating subscription token")]
 fn generate_subscription_token() -> String {
     let mut rng = thread_rng();
     std::iter::repeat_with(|| rng.sample(Alphanumeric))

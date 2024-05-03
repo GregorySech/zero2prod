@@ -1,4 +1,7 @@
-use wiremock::{matchers::{method, path}, Mock, ResponseTemplate};
+use wiremock::{
+    matchers::{method, path},
+    Mock, ResponseTemplate,
+};
 
 use crate::helpers::{spawn_app, TestApp};
 
@@ -20,9 +23,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     // Assert
     assert_eq!(200, response.status().as_u16());
-    
 }
-
 
 #[tokio::test]
 async fn subscribe_persists_the_new_subscriber() {
@@ -35,7 +36,6 @@ async fn subscribe_persists_the_new_subscriber() {
         .expect(1)
         .mount(&app.email_server)
         .await;
-
 
     // Act
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -50,7 +50,10 @@ async fn subscribe_persists_the_new_subscriber() {
 
     assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
-    assert_eq!(saved.status, "pending_confirmation", "Created subscription should have pending_confirmation status.");
+    assert_eq!(
+        saved.status, "pending_confirmation",
+        "Created subscription should have pending_confirmation status."
+    );
 }
 
 #[tokio::test]
@@ -98,7 +101,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     }
 }
 
-/// Checking if a confirmation email is sent when the subscription endpoint is 
+/// Checking if a confirmation email is sent when the subscription endpoint is
 /// hit with a valid body.
 #[tokio::test]
 async fn subscribe_sends_a_confirmation_email_for_valid_data() {
