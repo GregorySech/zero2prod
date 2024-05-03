@@ -6,7 +6,7 @@ use crate::{
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use sqlx::{types::Uuid, PgPool};
+use sqlx::{types::Uuid, Executor, PgPool, Postgres, Transaction};
 
 #[derive(serde::Deserialize)]
 pub struct SubscribeFormData {
@@ -16,14 +16,14 @@ pub struct SubscribeFormData {
 
 #[tracing::instrument(
     name = "Saving new subscriber details to db",
-    skip(pool, new_subscriber)
+    skip(transaction, new_subscriber)
 )]
 async fn insert_subscriber(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     new_subscriber: &NewSubscriber,
 ) -> Result<Uuid, sqlx::Error> {
     let subscriber_id = Uuid::new_v4();
-    sqlx::query!(
+    let query = sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at, status)
         VALUES ($1, $2, $3, $4, 'pending_confirmation')
@@ -32,33 +32,30 @@ async fn insert_subscriber(
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
         Utc::now() // Is this web-server time? Kinda risky :/
-    )
-    .execute(pool)
-    .await
-    .map_err(|error| {
+    );
+
+    transaction.execute(query).await.map_err(|error| {
         tracing::error!("Failed to execute query: {:?}", error);
         error
     })?;
     Ok(subscriber_id)
 }
 
-#[tracing::instrument(name = "Saving subscription token to db", skip(pool))]
+#[tracing::instrument(name = "Saving subscription token to db", skip(transaction))]
 async fn store_subscription_token(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     subscription_token: &str,
     subscriber_id: Uuid,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+    let query = sqlx::query!(
         r#"
         INSERT INTO subscriptions_tokens (subscription_token, subscriber_id)
         VALUES ($1, $2)
         "#,
         subscription_token,
         subscriber_id,
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| {
+    );
+    transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         e
     })?;
@@ -140,16 +137,24 @@ pub async fn subscribe(
         Ok(subscriber) => subscriber,
     };
 
-    let subscriber_id = match insert_subscriber(&pool, &new_subscriber).await {
+    let mut transaction = match pool.begin().await {
+        Ok(transaction) => transaction,
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    };
+
+    let subscriber_id = match insert_subscriber(&mut transaction, &new_subscriber).await {
         Ok(subscriber_id) => subscriber_id,
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
 
     let subscription_token = generate_subscription_token();
-    if store_subscription_token(&pool, &subscription_token, subscriber_id)
+    if store_subscription_token(&mut transaction, &subscription_token, subscriber_id)
         .await
         .is_err()
     {
+        return HttpResponse::InternalServerError().finish();
+    }
+    if transaction.commit().await.is_err() {
         return HttpResponse::InternalServerError().finish();
     }
 
