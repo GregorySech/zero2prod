@@ -56,8 +56,8 @@ async fn subscribe_persists_the_new_subscriber() {
     );
 }
 
-/// The subscribe endpoint should return 200 even when the user is still 
-/// pending confirmation. No testing assumptions on the database state or email 
+/// The subscribe endpoint should return 200 even when the user is still
+/// pending confirmation. No testing assumptions on the database state or email
 /// sending.
 #[tokio::test]
 async fn subscribing_twice_returns_200() {
@@ -191,5 +191,3 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
     let text_link = get_link(body["TextBody"].as_str().unwrap());
     assert_eq!(html_link, text_link);
 }
-
-
