@@ -45,3 +45,10 @@ An example of property test is inside the domain module's unit tests. In the las
 So I decided to use the `proptest` library that seems to be more actively maintained looking at the GitHub issues.
 
 In the spirit of the book's chapter I didn't encode the properties of a well-formed email according to one standard. I assumed that the emails generated from the `fake` package are well formed and test that the implemented validation logic doesn't fail against them.
+
+# Exercises
+- [x] Send confirmation emails when subscribing email in pending confirmation status.
+- [ ] Check behaviour of multiple calls to subscriptions/confirm endpoint.
+- [ ] Handle non-existent confirmation tokens.
+- [ ] Validate incoming confirmation tokens.
+- [ ] Email templating.
