@@ -56,6 +56,63 @@ async fn subscribe_persists_the_new_subscriber() {
     );
 }
 
+/// The subscribe endpoint should return 200 even when the user is still 
+/// pending confirmation. No testing assumptions on the database state or email 
+/// sending.
+#[tokio::test]
+async fn subscribing_twice_returns_200() {
+    // Arrange
+    let app: TestApp = spawn_app().await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(2)
+        .mount(&app.email_server)
+        .await;
+
+    // Act
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let response1 = app.post_subscriptions(body.into()).await;
+    let response2 = app.post_subscriptions(body.into()).await;
+
+    assert_eq!(response1.status().as_u16(), 200);
+    assert_eq!(response2.status().as_u16(), 200);
+}
+
+#[tokio::test]
+async fn subscribing_twice_persists_one_new_subscriber() {
+    // Arrange
+    let app: TestApp = spawn_app().await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(2)
+        .mount(&app.email_server)
+        .await;
+
+    // Act
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let _ = app.post_subscriptions(body.into()).await;
+    let _ = app.post_subscriptions(body.into()).await;
+
+    let db_pool = app.db_pool;
+
+    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions")
+        .fetch_all(&db_pool)
+        .await
+        .expect("Failed to fetch saved subscription.");
+    assert_eq!(saved.len(), 1, "only one record");
+    let record = saved.first().unwrap();
+    assert_eq!(record.email, "ursula_le_guin@gmail.com");
+    assert_eq!(record.name, "le guin");
+    assert_eq!(
+        record.status, "pending_confirmation",
+        "Created subscription should have pending_confirmation status."
+    );
+}
+
 #[tokio::test]
 async fn subscribe_returns_a_400_when_fields_are_present_but_empty() {
     let app = spawn_app().await;
@@ -134,3 +191,5 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
     let text_link = get_link(body["TextBody"].as_str().unwrap());
     assert_eq!(html_link, text_link);
 }
+
+
