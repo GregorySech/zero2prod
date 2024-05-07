@@ -1,5 +1,5 @@
 use crate::{
-    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName, SubscriberStatus},
     email_client::EmailAPIClient,
     startup::ApplicationBaseUrl,
 };
@@ -118,6 +118,57 @@ fn generate_subscription_token() -> String {
         .collect()
 }
 
+#[tracing::instrument(name = "Getting subscription status", skip(subscriber, pool))]
+async fn subscription_status(
+    subscriber: &NewSubscriber,
+    pool: &PgPool,
+) -> Result<SubscriberStatus, sqlx::Error> {
+    let subscription_record = sqlx::query!(
+        "SELECT status 
+        FROM subscriptions 
+        WHERE email = $1",
+        subscriber.email.as_ref(),
+    )
+    .fetch_optional(pool)
+    .await?;
+    if subscription_record.is_none() {
+        return Ok(SubscriberStatus::Unsubscribed);
+    }
+    let subscription_status = SubscriberStatus::parse(&subscription_record.unwrap().status)
+        .map_err(|e| {
+            tracing::error!(e);
+            e
+        });
+    match subscription_status {
+        Ok(status) => Ok(status),
+        Err(_) => Ok(SubscriberStatus::Unsubscribed),
+    }
+}
+
+#[tracing::instrument(name = "Getting subscriber uuid", skip(subscriber, pool))]
+async fn uuid_for_subscriber(
+    subscriber: &NewSubscriber,
+    pool: &PgPool,
+) -> Result<Uuid, sqlx::Error> {
+    let uuid_record = sqlx::query!(
+        "
+        SELECT id
+        FROM subscriptions
+        WHERE email = $1",
+        subscriber.email.as_ref()
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(uuid_record.id)
+}
+
+/// Route creates a new subscription and sends a confirmation email to the user.
+///
+/// Requests for subscriptions that are in pending confirmation status send
+/// again confirmation emails.  
+/// Requests for other existing subscriptions are unauthorized until a better
+/// response kind is proposed.
 #[tracing::instrument(
     name = "Adding a new subscriber",
     skip(form, pool, email_client, base_url),
@@ -132,9 +183,17 @@ pub async fn subscribe(
     email_client: web::Data<EmailAPIClient>,
     base_url: web::Data<ApplicationBaseUrl>,
 ) -> impl Responder {
+    // Confirm well formed new subscriber form.
     let new_subscriber = match form.0.try_into() {
         Err(_) => return HttpResponse::BadRequest().finish(),
         Ok(subscriber) => subscriber,
+    };
+
+    // Confirm that the status for the subscriber is correct for the endpoint.
+    let subscriber_status = subscription_status(&new_subscriber, &pool).await;
+    let subscriber_status = match subscriber_status {
+        Ok(status) => status,
+        Err(_) => return HttpResponse::InternalServerError().finish(),
     };
 
     let mut transaction = match pool.begin().await {
@@ -142,13 +201,21 @@ pub async fn subscribe(
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
 
-    let subscriber_id = match insert_subscriber(&mut transaction, &new_subscriber).await {
-        Ok(subscriber_id) => subscriber_id,
+    let sub_id = match subscriber_status {
+        SubscriberStatus::Unsubscribed => {
+            insert_subscriber(&mut transaction, &new_subscriber).await
+        }
+        SubscriberStatus::PendingConfirmation => uuid_for_subscriber(&new_subscriber, &pool).await,
+        SubscriberStatus::Confirmed => return HttpResponse::InternalServerError().finish(),
+    };
+
+    let sub_id = match sub_id {
         Err(_) => return HttpResponse::InternalServerError().finish(),
+        Ok(id) => id,
     };
 
     let subscription_token = generate_subscription_token();
-    if store_subscription_token(&mut transaction, &subscription_token, subscriber_id)
+    if store_subscription_token(&mut transaction, &subscription_token, sub_id)
         .await
         .is_err()
     {
