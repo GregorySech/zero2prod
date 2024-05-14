@@ -221,8 +221,7 @@ async fn uuid_for_subscriber(
         subscriber.email.as_ref()
     )
     .fetch_one(pool)
-    .await
-    ?;
+    .await?;
 
     Ok(uuid_record.id)
 }
@@ -255,8 +254,10 @@ pub async fn subscribe(
         .await
         .context("Failed to retrieve subscriber status.")?;
 
-    let mut transaction = pool.begin().await.context("Failed to acquire database connection from the pool")?;
-
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire database connection from the pool")?;
 
     // Create pending subscription or retrieve existing subscription id.
     let sub_id = match subscriber_status {
