@@ -5,41 +5,6 @@ use wiremock::{
 
 use crate::helpers::{spawn_app, ConfirmationLinks, TestApp};
 
-async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
-    let body = "name=gregory&email=example@gmail.com";
-
-    let _guard = Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .named("Create unconfirmed subscriber")
-        .expect(1)
-        .mount_as_scoped(&app.email_server)
-        .await;
-
-    app.post_subscriptions(body.into())
-        .await
-        .error_for_status()
-        .unwrap();
-
-    let email_request = &app
-        .email_server
-        .received_requests()
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-    app.get_confirmation_links(email_request)
-}
-
-async fn create_confirmed_subscriber(app: &TestApp) {
-    let confirmation_link = create_unconfirmed_subscriber(app).await;
-    reqwest::get(confirmation_link.html)
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap();
-}
-
 #[tokio::test]
 async fn newsletters_are_delivered_to_confirmed_subscribers() {
     let app = spawn_app().await;
@@ -98,4 +63,39 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
         .expect("Failed to execute request");
 
     assert_eq!(response.status().as_u16(), 200);
+}
+
+async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
+    let body = "name=gregory&email=example@gmail.com";
+
+    let _guard = Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .named("Create unconfirmed subscriber")
+        .expect(1)
+        .mount_as_scoped(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into())
+        .await
+        .error_for_status()
+        .unwrap();
+
+    let email_request = &app
+        .email_server
+        .received_requests()
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+    app.get_confirmation_links(email_request)
+}
+
+async fn create_confirmed_subscriber(app: &TestApp) {
+    let confirmation_link = create_unconfirmed_subscriber(app).await;
+    reqwest::get(confirmation_link.html)
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
 }
