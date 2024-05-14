@@ -4,6 +4,7 @@ use crate::{
     startup::ApplicationBaseUrl,
 };
 use actix_web::{web, HttpResponse, Responder, ResponseError};
+use anyhow::Context;
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use reqwest::StatusCode;
@@ -54,22 +55,10 @@ impl std::fmt::Display for StoreTokenError {
 
 #[derive(thiserror::Error)]
 pub enum SubscribeError {
-    #[error("Failed to store the confirmation token.")]
-    StoreTokenError(#[from] StoreTokenError),
     #[error("{0}")]
     ValidationError(String),
-    #[error("Failed to obtain db connection from the pool.")]
-    PoolError(#[source] sqlx::Error),
-    #[error("Failed to persist subscriber data.")]
-    InsertSubscriberError(#[source] sqlx::Error),
-    #[error("Failed to retrieve subscriber status.")]
-    SubscriberStatusError(#[source] sqlx::Error),
-    #[error("Failed to commit transaction for new subscription.")]
-    TransactionCommitError(#[source] sqlx::Error),
-    #[error("Failed to retrieve subscriber id.")]
-    SubscriberIDError(#[source] sqlx::Error),
-    #[error("Failed to send confirmation email.")]
-    SendEmailError(#[from] reqwest::Error),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
 }
 
 impl std::fmt::Debug for SubscribeError {
@@ -82,13 +71,7 @@ impl ResponseError for SubscribeError {
     fn status_code(&self) -> reqwest::StatusCode {
         match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscribeError::StoreTokenError(_)
-            | SubscribeError::PoolError(_)
-            | SubscribeError::TransactionCommitError(_)
-            | SubscribeError::InsertSubscriberError(_)
-            | SubscribeError::SubscriberStatusError(_)
-            | SubscribeError::SubscriberIDError(_)
-            | SubscribeError::SendEmailError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -130,10 +113,7 @@ async fn insert_subscriber(
         Utc::now() // Is this web-server time? Kinda risky :/
     );
 
-    transaction.execute(query).await.map_err(|error| {
-        tracing::error!("Failed to execute query: {:?}", error);
-        error
-    })?;
+    transaction.execute(query).await?;
     Ok(subscriber_id)
 }
 
@@ -151,10 +131,7 @@ async fn store_subscription_token(
         subscription_token,
         subscriber_id,
     );
-    transaction.execute(query).await.map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        e
-    })?;
+    transaction.execute(query).await?;
     Ok(())
 }
 
@@ -215,16 +192,13 @@ async fn subscription_status(
         subscriber.email.as_ref(),
     )
     .fetch_optional(pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to get subscription status: {:?}", e);
-        e
-    })?;
+    .await?;
     if subscription_record.is_none() {
         return Ok(SubscriberStatus::Unsubscribed);
     }
     let subscription_status = SubscriberStatus::parse(&subscription_record.unwrap().status)
         .map_err(|e| {
+            // Keeping this tracing as the error is handled as a signal.
             tracing::error!(e);
             e
         });
@@ -248,10 +222,7 @@ async fn uuid_for_subscriber(
     )
     .fetch_one(pool)
     .await
-    .map_err(|e| {
-        tracing::error!("Failed to get subscription uuid: {:?}", e);
-        e
-    })?;
+    ?;
 
     Ok(uuid_record.id)
 }
@@ -282,30 +253,31 @@ pub async fn subscribe(
     // Confirm that the status for the subscriber is correct for the endpoint.
     let subscriber_status = subscription_status(&new_subscriber, &pool)
         .await
-        .map_err(SubscribeError::SubscriberStatusError)?;
+        .context("Failed to retrieve subscriber status.")?;
 
-    let mut transaction = pool.begin().await.map_err(SubscribeError::PoolError)?;
+    let mut transaction = pool.begin().await.context("Failed to acquire database connection from the pool")?;
+
 
     // Create pending subscription or retrieve existing subscription id.
     let sub_id = match subscriber_status {
         SubscriberStatus::Unsubscribed => insert_subscriber(&mut transaction, &new_subscriber)
             .await
-            .map_err(SubscribeError::InsertSubscriberError)?,
+            .context("Failed to insert subscriber.")?,
         SubscriberStatus::PendingConfirmation => uuid_for_subscriber(&new_subscriber, &pool)
             .await
-            .map_err(SubscribeError::SubscriberIDError)?,
+            .context("Failed to retrieve subscriber information.")?,
         SubscriberStatus::Confirmed => return Ok(HttpResponse::InternalServerError().finish()),
     };
 
     let subscription_token = generate_subscription_token();
     store_subscription_token(&mut transaction, &subscription_token, sub_id)
         .await
-        .map_err(SubscribeError::StoreTokenError)?;
+        .context("Failed to store confirmation token.")?;
 
     transaction
         .commit()
         .await
-        .map_err(SubscribeError::TransactionCommitError)?;
+        .context("Failed to commit subscription transaction.")?;
 
     send_confirmation_email(
         email_client.as_ref(),
@@ -314,7 +286,7 @@ pub async fn subscribe(
         &subscription_token,
     )
     .await
-    .map_err(SubscribeError::SendEmailError)?;
+    .context("Failed to send confirmation email.")?;
 
     Ok(HttpResponse::Ok().finish())
 }
