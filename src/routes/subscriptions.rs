@@ -10,25 +10,14 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use reqwest::StatusCode;
 use sqlx::{types::Uuid, Executor, PgPool, Postgres, Transaction};
 
+use super::error_chain_fmt;
+
 pub struct StoreTokenError(sqlx::Error);
 
 impl From<sqlx::Error> for StoreTokenError {
     fn from(value: sqlx::Error) -> Self {
         Self(value)
     }
-}
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    writeln!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
 }
 
 impl std::error::Error for StoreTokenError {

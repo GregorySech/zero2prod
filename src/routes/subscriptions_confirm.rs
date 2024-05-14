@@ -1,9 +1,13 @@
 use actix_web::{
     web::{Data, Query},
-    HttpResponse,
+    HttpResponse, Responder, ResponseError,
 };
+use anyhow::Context;
+use reqwest::StatusCode;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+use super::error_chain_fmt;
 
 #[derive(serde::Deserialize)]
 pub struct ConfirmationParameters {
@@ -17,7 +21,7 @@ pub struct ConfirmationParameters {
 async fn subscriber_id_from_token(
     subscription_token: String,
     pool: &PgPool,
-) -> Result<Option<Uuid>, sqlx::Error> {
+) -> Result<Uuid, ConfirmationError> {
     let result = sqlx::query!(
         "SELECT subscriber_id
     FROM subscriptions_tokens
@@ -26,11 +30,14 @@ async fn subscriber_id_from_token(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| {
-        tracing::error!("Failed to execute subscriber_id query: {:?}", e);
-        e
-    })?;
-    Ok(result.map(|r| r.subscriber_id))
+    .context("Failed to retrieve subscription confirmation.")?;
+
+    match result {
+        Some(record) => Ok(record.subscriber_id),
+        None => Err(ConfirmationError::ValidationError(
+            "No subscription found!".into(),
+        )),
+    }
 }
 
 #[tracing::instrument(name = "Changing subscriber status", skip(subscriber_id, pool))]
@@ -42,12 +49,31 @@ async fn confirm_subscriber(subscriber_id: Uuid, pool: &PgPool) -> Result<(), sq
         subscriber_id
     )
     .execute(pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed query to update subscription status: {:?}", e);
-        e
-    })?;
+    .await?;
     Ok(())
+}
+
+#[derive(thiserror::Error)]
+pub enum ConfirmationError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl std::fmt::Debug for ConfirmationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl ResponseError for ConfirmationError {
+    fn status_code(&self) -> reqwest::StatusCode {
+        match self {
+            ConfirmationError::ValidationError(_) => StatusCode::UNAUTHORIZED,
+            ConfirmationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
 }
 
 /// Endpoint for the subscription confirmation token. Checks if the subscription token is associated with a subscription and confirms is.
@@ -55,20 +81,13 @@ async fn confirm_subscriber(subscriber_id: Uuid, pool: &PgPool) -> Result<(), sq
 pub async fn confirm(
     _parameters: Query<ConfirmationParameters>,
     pool: Data<PgPool>,
-) -> HttpResponse {
+) -> Result<impl Responder, ConfirmationError> {
     let subscription_token = _parameters.0.subscription_token;
+    let subscriber_id = subscriber_id_from_token(subscription_token, &pool).await?;
 
-    let subscriber_id = match subscriber_id_from_token(subscription_token, &pool).await {
-        Ok(maybe_uuid) => match maybe_uuid {
-            Some(uuid) => uuid,
-            None => return HttpResponse::Unauthorized().finish(),
-        },
-        Err(_) => return HttpResponse::InternalServerError().finish(),
-    };
+    confirm_subscriber(subscriber_id, &pool)
+        .await
+        .context("Failed to change subscription status.")?;
 
-    if confirm_subscriber(subscriber_id, &pool).await.is_err() {
-        return HttpResponse::InternalServerError().finish();
-    }
-
-    HttpResponse::Ok().finish()
+    Ok(HttpResponse::Ok())
 }
