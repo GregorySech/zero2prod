@@ -9,6 +9,22 @@ use uuid::Uuid;
 
 use super::error_chain_fmt;
 
+/// Endpoint for the subscription confirmation token. Checks if the subscription token is associated with a subscription and confirms is.
+#[tracing::instrument(name = "Confirm a pending subscriber", skip(_parameters))]
+pub async fn confirm(
+    _parameters: Query<ConfirmationParameters>,
+    pool: Data<PgPool>,
+) -> Result<impl Responder, ConfirmationError> {
+    let subscription_token = _parameters.0.subscription_token;
+    let subscriber_id = subscriber_id_from_token(subscription_token, &pool).await?;
+
+    confirm_subscriber(subscriber_id, &pool)
+        .await
+        .context("Failed to change subscription status.")?;
+
+    Ok(HttpResponse::Ok())
+}
+
 #[derive(serde::Deserialize)]
 pub struct ConfirmationParameters {
     subscription_token: String,
@@ -74,20 +90,4 @@ impl ResponseError for ConfirmationError {
             ConfirmationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
-}
-
-/// Endpoint for the subscription confirmation token. Checks if the subscription token is associated with a subscription and confirms is.
-#[tracing::instrument(name = "Confirm a pending subscriber", skip(_parameters))]
-pub async fn confirm(
-    _parameters: Query<ConfirmationParameters>,
-    pool: Data<PgPool>,
-) -> Result<impl Responder, ConfirmationError> {
-    let subscription_token = _parameters.0.subscription_token;
-    let subscriber_id = subscriber_id_from_token(subscription_token, &pool).await?;
-
-    confirm_subscriber(subscriber_id, &pool)
-        .await
-        .context("Failed to change subscription status.")?;
-
-    Ok(HttpResponse::Ok())
 }

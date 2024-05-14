@@ -12,6 +12,72 @@ use sqlx::{types::Uuid, Executor, PgPool, Postgres, Transaction};
 
 use super::error_chain_fmt;
 
+/// Route creates a new subscription and sends a confirmation email to the user.
+///
+/// Requests for subscriptions that are in pending confirmation status send
+/// again confirmation emails.  
+/// Requests for other existing subscriptions are unauthorized until a better
+/// response kind is proposed.
+#[tracing::instrument(
+    name = "Adding a new subscriber",
+    skip(form, pool, email_client, base_url),
+    fields(
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
+    )
+)]
+pub async fn subscribe(
+    form: web::Form<SubscribeFormData>,
+    pool: web::Data<PgPool>,
+    email_client: web::Data<EmailAPIClient>,
+    base_url: web::Data<ApplicationBaseUrl>,
+) -> Result<impl Responder, SubscribeError> {
+    // Confirm well formed new subscriber form.
+    let new_subscriber = form.0.try_into().map_err(SubscribeError::ValidationError)?;
+
+    // Confirm that the status for the subscriber is correct for the endpoint.
+    let subscriber_status = subscription_status(&new_subscriber, &pool)
+        .await
+        .context("Failed to retrieve subscriber status.")?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire database connection from the pool")?;
+
+    // Create pending subscription or retrieve existing subscription id.
+    let sub_id = match subscriber_status {
+        SubscriberStatus::Unsubscribed => insert_subscriber(&mut transaction, &new_subscriber)
+            .await
+            .context("Failed to insert subscriber.")?,
+        SubscriberStatus::PendingConfirmation => uuid_for_subscriber(&new_subscriber, &pool)
+            .await
+            .context("Failed to retrieve subscriber information.")?,
+        SubscriberStatus::Confirmed => return Ok(HttpResponse::InternalServerError().finish()),
+    };
+
+    let subscription_token = generate_subscription_token();
+    store_subscription_token(&mut transaction, &subscription_token, sub_id)
+        .await
+        .context("Failed to store confirmation token.")?;
+
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit subscription transaction.")?;
+
+    send_confirmation_email(
+        email_client.as_ref(),
+        new_subscriber,
+        &base_url.0,
+        &subscription_token,
+    )
+    .await
+    .context("Failed to send confirmation email.")?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 pub struct StoreTokenError(sqlx::Error);
 
 impl From<sqlx::Error> for StoreTokenError {
@@ -213,70 +279,4 @@ async fn uuid_for_subscriber(
     .await?;
 
     Ok(uuid_record.id)
-}
-
-/// Route creates a new subscription and sends a confirmation email to the user.
-///
-/// Requests for subscriptions that are in pending confirmation status send
-/// again confirmation emails.  
-/// Requests for other existing subscriptions are unauthorized until a better
-/// response kind is proposed.
-#[tracing::instrument(
-    name = "Adding a new subscriber",
-    skip(form, pool, email_client, base_url),
-    fields(
-        subscriber_email = %form.email,
-        subscriber_name = %form.name
-    )
-)]
-pub async fn subscribe(
-    form: web::Form<SubscribeFormData>,
-    pool: web::Data<PgPool>,
-    email_client: web::Data<EmailAPIClient>,
-    base_url: web::Data<ApplicationBaseUrl>,
-) -> Result<impl Responder, SubscribeError> {
-    // Confirm well formed new subscriber form.
-    let new_subscriber = form.0.try_into().map_err(SubscribeError::ValidationError)?;
-
-    // Confirm that the status for the subscriber is correct for the endpoint.
-    let subscriber_status = subscription_status(&new_subscriber, &pool)
-        .await
-        .context("Failed to retrieve subscriber status.")?;
-
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire database connection from the pool")?;
-
-    // Create pending subscription or retrieve existing subscription id.
-    let sub_id = match subscriber_status {
-        SubscriberStatus::Unsubscribed => insert_subscriber(&mut transaction, &new_subscriber)
-            .await
-            .context("Failed to insert subscriber.")?,
-        SubscriberStatus::PendingConfirmation => uuid_for_subscriber(&new_subscriber, &pool)
-            .await
-            .context("Failed to retrieve subscriber information.")?,
-        SubscriberStatus::Confirmed => return Ok(HttpResponse::InternalServerError().finish()),
-    };
-
-    let subscription_token = generate_subscription_token();
-    store_subscription_token(&mut transaction, &subscription_token, sub_id)
-        .await
-        .context("Failed to store confirmation token.")?;
-
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit subscription transaction.")?;
-
-    send_confirmation_email(
-        email_client.as_ref(),
-        new_subscriber,
-        &base_url.0,
-        &subscription_token,
-    )
-    .await
-    .context("Failed to send confirmation email.")?;
-
-    Ok(HttpResponse::Ok().finish())
 }
