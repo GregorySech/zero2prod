@@ -21,7 +21,7 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
         "title": "Newsletter title",
         "content": {
             "text" : "Plain text body",
-            "hteml": "<p>HTML body!</p>"
+            "html": "<p>HTML body!</p>"
         }
     });
 
@@ -46,7 +46,7 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
         "title": "Newsletter title",
         "content": {
             "text" : "Plain text body",
-            "hteml": "<p>HTML body!</p>"
+            "html": "<p>HTML body!</p>"
         }
     });
 
