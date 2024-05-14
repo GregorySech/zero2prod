@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 
 use reqwest::{Response, Url};
+use serde_json::Value;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use wiremock::MockServer;
@@ -53,6 +54,15 @@ impl TestApp {
             .send()
             .await
             .expect(&expect_body)
+    }
+
+    pub async fn post_newsletters(&self, body: Value) -> Response {
+        reqwest::Client::new()
+            .post(&format!("{}/newsletters", self.address))
+            .json(&body)
+            .send()
+            .await
+            .expect("Request failed!")
     }
 }
 
