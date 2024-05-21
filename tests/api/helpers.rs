@@ -1,7 +1,9 @@
+use anyhow::Context;
 use once_cell::sync::Lazy;
 
 use reqwest::{Response, Url};
 use serde_json::Value;
+use sha3::Digest;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use wiremock::MockServer;
@@ -21,6 +23,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub port: u16,
     pub base_url: Url,
+    pub test_user: TestUser,
 }
 
 impl TestApp {
@@ -57,24 +60,46 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: Value) -> Response {
-        let (username, password) = self.test_user().await;
-
         reqwest::Client::new()
             .post(&format!("{}/newsletters", self.address))
-            .basic_auth(username, Some(password))
+            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
             .send()
             .await
             .expect("Request failed!")
     }
+}
 
-    pub async fn test_user(&self) -> (String, String) {
-        let row = sqlx::query!("SELECT username, password FROM users LIMIT 1")
-            .fetch_one(&self.db_pool)
-            .await
-            .expect("Failed to fetch test user.");
+struct TestUser {
+    password: String,
+    username: String,
+    user_id: Uuid,
+}
 
-        (row.username, row.password)
+impl TestUser {
+    fn generate() -> Self {
+        TestUser {
+            password: Uuid::new_v4().to_string(),
+            username: Uuid::new_v4().to_string(),
+            user_id: Uuid::new_v4(),
+        }
+    }
+
+    async fn store(&self, pool: &PgPool) {
+        let password_hash = sha3::Sha3_256::digest(self.password.as_bytes());
+        let password_hash = format!("{:x}", password_hash);
+
+        sqlx::query!(
+            "
+        INSERT INTO users (user_id, username, password_hash)
+        VALUES ($1, $2, $3)",
+            self.user_id,
+            self.username,
+            password_hash,
+        )
+        .execute(pool)
+        .await
+        .expect("Failed to store test user");
     }
 }
 
@@ -113,9 +138,9 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         port: application_port,
         base_url: Url::parse(&configuration.application.base_url).unwrap(),
+        test_user: TestUser::generate(),
     };
-
-    add_test_user(&test_app.db_pool).await;
+    test_app.test_user.store(&test_app.db_pool).await;
 
     test_app
 }
@@ -146,19 +171,4 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to migrate the database");
 
     connection_pool
-}
-
-async fn add_test_user(pool: &PgPool) {
-    sqlx::query!(
-        "
-    INSERT INTO users(user_id, username, password)
-    VALUES ($1, $2, $3)
-    ",
-        Uuid::new_v4(),
-        Uuid::new_v4().to_string(),
-        Uuid::new_v4().to_string(),
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create test users.");
 }
