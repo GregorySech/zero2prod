@@ -14,6 +14,7 @@ name = "zero2prod"
 [dependencies]
 actix-web = "4"
 anyhow = "1.0.83"
+base64 = "0.22.1"
 chrono = { version = "0.4.35", default-features = false, features = ["clock"] }
 claims = "0.7.1"
 # TODO check when current master is released in crates to move back to version.
