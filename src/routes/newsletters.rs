@@ -5,21 +5,28 @@ use actix_web::{
 use anyhow::Context;
 use base64::Engine;
 use reqwest::{header::HeaderValue, StatusCode};
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 
 use crate::{domain::SubscriberEmail, email_client::EmailAPIClient};
 
 use super::error_chain_fmt;
 
+#[tracing::instrument(
+    name = "Publish a newsletter issue",
+    skip(body, pool, email_client, request),
+    fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
+)]
 pub async fn publish_newsletters(
-    _body: web::Json<BodyData>,
+    body: web::Json<BodyData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailAPIClient>,
     request: HttpRequest,
 ) -> Result<impl Responder, PublishError> {
-    let _credentials = basic_authentication(request.headers()).map_err(PublishError::AuthError)?;
-
+    let credentials = basic_authentication(request.headers()).map_err(PublishError::AuthError)?;
+    tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
+    let user_id = validate_credentials(credentials, &pool).await?;
+    tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
     let subscribers = get_confirmed_subscribers(&pool)
         .await
         .context("Failed to retrieve subscribers")?;
@@ -29,9 +36,9 @@ pub async fn publish_newsletters(
             Ok(subscriber) => email_client
                 .send_email(
                     &subscriber.email,
-                    &_body.title,
-                    &_body.content.html,
-                    &_body.content.text,
+                    &body.title,
+                    &body.content.html,
+                    &body.content.text,
                 )
                 .await
                 .with_context(|| format!("Failed to send newsletter to {}", subscriber.email))?,
@@ -47,6 +54,30 @@ pub async fn publish_newsletters(
 struct Credentials {
     username: String,
     password: Secret<String>,
+}
+
+async fn validate_credentials(
+    credentials: Credentials,
+    pool: &PgPool,
+) -> Result<uuid::Uuid, PublishError> {
+    let user_id = sqlx::query!(
+        r#"
+        SELECT user_id
+        FROM users
+        WHERE username = $1 AND password = $2
+        "#,
+        credentials.username,
+        credentials.password.expose_secret()
+    )
+    .fetch_optional(pool)
+    .await
+    .context("Failed to perform query to validate auth credentials.")
+    .map_err(PublishError::UnexpectedError)?;
+
+    user_id
+        .map(|row| row.user_id)
+        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
+        .map_err(PublishError::AuthError)
 }
 
 fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
