@@ -3,11 +3,12 @@ use actix_web::{
     web, HttpRequest, HttpResponse, Responder, ResponseError,
 };
 use anyhow::Context;
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use base64::Engine;
 use reqwest::{header::HeaderValue, StatusCode};
 use secrecy::{ExposeSecret, Secret};
-use sha3::Digest;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{domain::SubscriberEmail, email_client::EmailAPIClient};
 
@@ -61,26 +62,45 @@ async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, PublishError> {
-    let password_hash = sha3::Sha3_256::digest(credentials.password.expose_secret().as_bytes());
-    let password_hash = format!("{:x}", password_hash);
-    let user_id = sqlx::query!(
+    struct UserRow {
+        user_id: Uuid,
+        password_hash: String,
+    }
+
+    let row = sqlx::query_as!(
+        UserRow,
         r#"
-        SELECT user_id
+        SELECT user_id, password_hash
         FROM users
-        WHERE username = $1 AND password_hash = $2
+        WHERE username = $1
         "#,
         credentials.username,
-        password_hash,
     )
     .fetch_optional(pool)
     .await
-    .context("Failed to perform query to validate auth credentials.")
+    .context("Failed to retrieve stored credentials.")
     .map_err(PublishError::UnexpectedError)?;
 
-    user_id
-        .map(|row| row.user_id)
-        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
-        .map_err(PublishError::AuthError)
+    let (expected_hash, user_id) = match row {
+        Some(row) => (row.password_hash, row.user_id),
+        None => {
+            return Err(PublishError::AuthError(anyhow::anyhow!("Unknown username")));
+        }
+    };
+
+    let expected_password_hash = PasswordHash::new(&expected_hash)
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexpectedError)?;
+
+    Argon2::default()
+        .verify_password(
+            credentials.password.expose_secret().as_bytes(),
+            &expected_password_hash,
+        )
+        .context("Invalid password.")
+        .map_err(PublishError::AuthError)?;
+
+    Ok(user_id)
 }
 
 fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
