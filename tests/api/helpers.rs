@@ -59,6 +59,7 @@ impl TestApp {
     pub async fn post_newsletters(&self, body: Value) -> Response {
         reqwest::Client::new()
             .post(&format!("{}/newsletters", self.address))
+            .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string())) // Better propagate credentials?
             .json(&body)
             .send()
             .await

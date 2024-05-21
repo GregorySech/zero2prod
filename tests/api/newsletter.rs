@@ -98,7 +98,7 @@ async fn requests_missing_authorization_are_rejected() {
         .json(&serde_json::json!({
             "title": "Newsletter title",
             "content": {
-                "test": "plain text",
+                "text": "plain text",
                 "html": "<p>html</p>"
             }
         }))
