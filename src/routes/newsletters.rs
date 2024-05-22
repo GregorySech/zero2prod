@@ -10,7 +10,9 @@ use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{domain::SubscriberEmail, email_client::EmailAPIClient};
+use crate::{
+    domain::SubscriberEmail, email_client::EmailAPIClient, telemetry::spawn_blocking_with_tracing,
+};
 
 use super::error_chain_fmt;
 
@@ -84,6 +86,26 @@ async fn get_stored_credentials(
     Ok(row)
 }
 
+#[tracing::instrument(
+    name = "Verify password hash",
+    skip(expected_password_hash, password_candidate)
+)]
+fn verify_password_hash(
+    expected_password_hash: Secret<String>,
+    password_candidate: Secret<String>,
+) -> Result<(), PublishError> {
+    let expected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexpectedError)?;
+    Argon2::default()
+        .verify_password(
+            password_candidate.expose_secret().as_bytes(),
+            &expected_password_hash,
+        )
+        .context("Invalid password.")
+        .map_err(PublishError::AuthError)
+}
+
 #[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
 async fn validate_credentials(
     credentials: Credentials,
@@ -94,19 +116,10 @@ async fn validate_credentials(
         .map_err(PublishError::UnexpectedError)?
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username")))?;
 
-    let expected_password_hash = PasswordHash::new(expected_hash.expose_secret())
-        .context("Failed to parse hash in PHC string format.")
-        .map_err(PublishError::UnexpectedError)?;
-
-    tracing::info_span!("Verify password hash")
-        .in_scope(|| {
-            Argon2::default().verify_password(
-                credentials.password.expose_secret().as_bytes(),
-                &expected_password_hash,
-            )
-        })
-        .context("Invalid password.")
-        .map_err(PublishError::AuthError)?;
+    spawn_blocking_with_tracing(move || verify_password_hash(expected_hash, credentials.password))
+        .await
+        .context("Failed to spawn blocking task")
+        .map_err(PublishError::UnexpectedError)??;
 
     Ok(user_id)
 }
