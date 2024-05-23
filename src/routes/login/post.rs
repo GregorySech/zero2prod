@@ -62,7 +62,6 @@ impl std::fmt::Debug for LoginError {
 }
 
 impl ResponseError for LoginError {
-
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
         let encoded_error = urlencoding::Encoded::new(self.to_string());
         HttpResponse::build(self.status_code())

@@ -20,7 +20,10 @@ pub struct Credentials {
 }
 
 #[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
-pub async fn validate_credentials(credentials: Credentials, pool: &PgPool) -> Result<Uuid, AuthError> {
+pub async fn validate_credentials(
+    credentials: Credentials,
+    pool: &PgPool,
+) -> Result<Uuid, AuthError> {
     let mut user_id: Option<Uuid> = None;
     let mut expected_hash = Secret::new(
         "$argon2id$v=19$m=15000,t=2,p=1$\
@@ -43,7 +46,6 @@ pub async fn validate_credentials(credentials: Credentials, pool: &PgPool) -> Re
         .ok_or_else(|| anyhow::anyhow!("Unknown username."))
         .map_err(AuthError::InvalidCredentials)
 }
-
 
 async fn get_stored_credentials(
     username: &str,
@@ -89,4 +91,3 @@ fn verify_password_hash(
         .context("Invalid password.")
         .map_err(AuthError::InvalidCredentials)
 }
-
