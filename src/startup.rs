@@ -1,7 +1,7 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailAPIClient,
-    routes::{confirm, health_check, home, publish_newsletters, subscribe},
+    routes::{confirm, health_check, home, login, login_form, publish_newsletters, subscribe},
 };
 use std::net::TcpListener;
 
@@ -76,11 +76,13 @@ fn run(
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
+            .route("/", web::get().to(home))
             .route("/health_check", web::get().to(health_check))
+            .route("/login", web::get().to(login_form))
+            .route("/login", web::post().to(login))
             .route("/newsletters", web::post().to(publish_newsletters))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
-            .route("/", web::get().to(home))
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(base_url.clone())
