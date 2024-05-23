@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse, ResponseError};
 use reqwest::{header::LOCATION, StatusCode};
 use secrecy::Secret;
-use sqlx::PgPool;
+use sqlx::{encode, PgPool};
 
 use crate::{
     authentication::{validate_credentials, Credentials},
@@ -62,6 +62,14 @@ impl std::fmt::Debug for LoginError {
 }
 
 impl ResponseError for LoginError {
+
+    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
+        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        HttpResponse::build(self.status_code())
+            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+            .finish()
+    }
+
     fn status_code(&self) -> reqwest::StatusCode {
         match self {
             LoginError::AuthError(_) => StatusCode::UNAUTHORIZED,
