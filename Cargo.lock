@@ -3406,6 +3406,7 @@ dependencies = [
  "config",
  "env_logger",
  "fake",
+ "hex",
  "hmac",
  "htmlescape",
  "linkify",
