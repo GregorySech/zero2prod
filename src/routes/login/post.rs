@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse, ResponseError};
 use reqwest::{header::LOCATION, StatusCode};
 use secrecy::Secret;
-use sqlx::{encode, PgPool};
+use sqlx::PgPool;
 
 use crate::{
     authentication::{validate_credentials, Credentials},
