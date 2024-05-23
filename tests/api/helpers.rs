@@ -92,9 +92,9 @@ impl TestUser {
             argon2::Version::V0x13,
             Params::new(15000, 2, 1, None).unwrap(),
         )
-            .hash_password(self.password.as_bytes(), &salt)
-            .unwrap()
-            .to_string();
+        .hash_password(self.password.as_bytes(), &salt)
+        .unwrap()
+        .to_string();
 
         sqlx::query!(
             "

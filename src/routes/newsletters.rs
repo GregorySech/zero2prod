@@ -118,12 +118,14 @@ async fn validate_credentials(
         CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
             .to_string(),
     );
-    if let Some((stored_user_id, expected_password_hash)) = get_stored_credentials(&credentials.username, pool)
-        .await
-        .map_err(PublishError::UnexpectedError)? {
-            user_id = Some(stored_user_id);
-            expected_hash = expected_password_hash;
-        }
+    if let Some((stored_user_id, expected_password_hash)) =
+        get_stored_credentials(&credentials.username, pool)
+            .await
+            .map_err(PublishError::UnexpectedError)?
+    {
+        user_id = Some(stored_user_id);
+        expected_hash = expected_password_hash;
+    }
 
     spawn_blocking_with_tracing(move || verify_password_hash(expected_hash, credentials.password))
         .await
