@@ -15,8 +15,21 @@ async fn an_error_flash_message_is_set_on_failure() {
 
     let flash_cookie = response.cookies().find(|c| c.name() == "_flash").unwrap();
 
-    assert_eq!(flash_cookie.value(), "Authentication failed");
+    assert_eq!(
+        flash_cookie.value(),
+        "Authentication failed",
+        "The response flash cookie should contain the 'Authentication failed message'"
+    );
 
     let html_page = app.get_login_html().await;
-    assert!(html_page.contains(r#"<p><i>Authentication failed</i></p>"#))
+    assert!(
+        html_page.contains(r#"<p><i>Authentication failed</i></p>"#),
+        "The message should be rendered in HTML."
+    );
+
+    let html_page = app.get_login_html().await;
+    assert!(
+        !html_page.contains(r#"<p><i>Authentication failed</i></p>"#),
+        "The cookie should be displayed in the first rendering of the response."
+    );
 }
