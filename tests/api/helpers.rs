@@ -18,10 +18,11 @@ pub struct ConfirmationLinks {
 
 pub struct TestApp {
     pub address: String,
+    pub api_client: reqwest::Client,
+    pub base_url: Url,
     pub db_pool: PgPool,
     pub email_server: MockServer,
     pub port: u16,
-    pub base_url: Url,
     pub test_user: TestUser,
 }
 
@@ -49,7 +50,7 @@ impl TestApp {
     pub async fn post_subscriptions(&self, body: String) -> Response {
         let expect_body = format!("Failed to execute subscriptions request for body {}.", body);
 
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/subscriptions", &self.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
@@ -59,13 +60,36 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: Value) -> Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/newsletters", self.address))
             .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
             .send()
             .await
             .expect("Request failed!")
+    }
+
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/login", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute login request.")
+    }
+
+    pub async fn get_login_html(&self) -> String {
+        self.api_client
+            .get(&format!("{}/login", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+            .text()
+            .await
+            .unwrap()
     }
 }
 
@@ -110,6 +134,11 @@ impl TestUser {
     }
 }
 
+pub fn assert_is_redirect_to(response: &reqwest::Response, location: &str) {
+    assert_eq!(response.status().as_u16(), 303);
+    assert_eq!(response.headers().get("Location").unwrap(), location);
+}
+
 pub async fn spawn_app() -> TestApp {
     // Setting up telemetry
     Lazy::force(&TRACING);
@@ -139,12 +168,19 @@ pub async fn spawn_app() -> TestApp {
     // Spawn application.
     tokio::spawn(app.run_until_stopped());
 
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
+
     let test_app = TestApp {
         address,
+        api_client: client,
+        base_url: Url::parse(&configuration.application.base_url).unwrap(),
         db_pool: get_connection_pool(&configuration.database),
         email_server,
         port: application_port,
-        base_url: Url::parse(&configuration.application.base_url).unwrap(),
         test_user: TestUser::generate(),
     };
     test_app.test_user.store(&test_app.db_pool).await;
