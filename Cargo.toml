@@ -12,7 +12,10 @@ path = "src/main.rs"
 name = "zero2prod"
 
 [dependencies]
+actix-session = { version = "0.9.0", features = ["redis-rs-tls-session"] }
 actix-web = "4"
+actix-web-flash-messages = {version = "0.4.2", features = ["cookies"]}
+actix-web-lab = "0.20.2"
 anyhow = "1.0.83"
 argon2 = { version = "0.5.3", features = ["std"] }
 base64 = "0.22.1"
@@ -39,7 +42,7 @@ tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
 unicode-segmentation = "1.11.0"
 urlencoding = "2.1.3"
-uuid = { version = "1.8.0", features = ["v4"] }
+uuid = { version = "1.8.0", features = ["v4", "serde"] }
 validator = "0.18.0"
 
 [dependencies.sqlx]
