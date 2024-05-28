@@ -1,7 +1,7 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailAPIClient,
-    routes::{confirm, health_check, home, login, login_form, publish_newsletters, subscribe},
+    routes::{admin_dashboard, confirm, health_check, home, login, login_form, publish_newsletters, subscribe},
 };
 use std::net::TcpListener;
 
@@ -99,6 +99,7 @@ async fn run(
             ))
             .wrap(TracingLogger::default())
             .route("/", web::get().to(home))
+            .route("/admin/dashboard", web::get().to(admin_dashboard))
             .route("/health_check", web::get().to(health_check))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
