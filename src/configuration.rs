@@ -40,6 +40,7 @@ pub struct Settings {
     pub application: ApplicationSettings,
     pub database: DatabaseSettings,
     pub email_client: EmailAPIClientSettings,
+    pub redis_uri: Secret<String>,
 }
 
 impl EmailAPIClientSettings {
