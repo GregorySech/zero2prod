@@ -1,7 +1,10 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailAPIClient,
-    routes::{admin_dashboard, confirm, health_check, home, login, login_form, publish_newsletters, subscribe},
+    routes::{
+        admin_dashboard, confirm, health_check, home, login, login_form, publish_newsletters,
+        subscribe,
+    },
 };
 use std::net::TcpListener;
 
