@@ -1,12 +1,14 @@
-use actix_session::Session;
 use actix_web::{http::header::ContentType, web, HttpResponse};
 use anyhow::Context;
 use sqlx::PgPool;
 use tracing::field::display;
 use uuid::Uuid;
 
+use crate::session_state::TypedSession;
+
 fn e500<ErrorType>(e: ErrorType) -> actix_web::Error
-where ErrorType: std::fmt::Debug + std::fmt::Display + 'static
+where
+    ErrorType: std::fmt::Debug + std::fmt::Display + 'static,
 {
     actix_web::error::ErrorInternalServerError(e)
 }
@@ -17,18 +19,18 @@ where ErrorType: std::fmt::Debug + std::fmt::Display + 'static
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
 pub async fn admin_dashboard(
-    session: Session,
+    session: TypedSession,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, actix_web::Error> {
-
-    let username = if let Some(user_id) = session.get::<Uuid>("user_id").map_err(e500)? {
+    let username = if let Some(user_id) = session.get_user_id().map_err(e500)? {
         tracing::Span::current().record("user_id", &display(&user_id));
         get_username(user_id, &pool).await.map_err(e500)?
     } else {
         todo!()
     };
     tracing::Span::current().record("username", &display(&username));
-    let body = format!(r#"
+    let body = format!(
+        r#"
     <!DOCTYPE html>
     <html lang="en">
         <head>
@@ -40,11 +42,12 @@ pub async fn admin_dashboard(
             <p>Welcome {username}</p>
         </body>
     </html>
-    "#);
+    "#
+    );
 
     Ok(HttpResponse::Ok()
-    .content_type(ContentType::html())
-    .body(body))
+        .content_type(ContentType::html())
+        .body(body))
 }
 
 #[tracing::instrument(name = "Get username", skip(pool))]
