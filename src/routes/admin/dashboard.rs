@@ -1,5 +1,6 @@
 use actix_web::{http::header::ContentType, web, HttpResponse};
 use anyhow::Context;
+use reqwest::header::LOCATION;
 use sqlx::PgPool;
 use tracing::field::display;
 use uuid::Uuid;
@@ -26,7 +27,9 @@ pub async fn admin_dashboard(
         tracing::Span::current().record("user_id", &display(&user_id));
         get_username(user_id, &pool).await.map_err(e500)?
     } else {
-        todo!()
+        return Ok(HttpResponse::SeeOther()
+            .insert_header((LOCATION, "/login"))
+            .finish());
     };
     tracing::Span::current().record("username", &display(&username));
     let body = format!(
