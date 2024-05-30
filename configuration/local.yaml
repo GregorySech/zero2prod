@@ -2,3 +2,6 @@ application:
   host: 127.0.0.1
   base_url: "http://127.0.0.1"
   hmac_secret: "super-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secretsuper-duper-hmac-secret"
+database:
+  port: 5432
+  require_ssl: false
