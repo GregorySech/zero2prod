@@ -52,3 +52,4 @@ In the spirit of the book's chapter I didn't encode the properties of a well-for
 - [ ] Handle non-existent confirmation tokens.
 - [ ] Validate incoming confirmation tokens.
 - [ ] Email templating.
+- [ ] Implement OWASP's requirements for password strength.
