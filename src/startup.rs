@@ -2,8 +2,8 @@ use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailAPIClient,
     routes::{
-        admin_dashboard, change_password, change_password_form, confirm, health_check, home, login,
-        login_form, publish_newsletters, subscribe,
+        admin_dashboard, change_password, change_password_form, confirm, health_check, home,
+        log_out, login, login_form, publish_newsletters, subscribe,
     },
 };
 use std::net::TcpListener;
@@ -108,6 +108,7 @@ async fn run(
             .route("/health_check", web::get().to(health_check))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
+            .route("/logout", web::post().to(log_out))
             .route("/newsletters", web::post().to(publish_newsletters))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
