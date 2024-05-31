@@ -5,14 +5,8 @@ use sqlx::PgPool;
 use tracing::field::display;
 use uuid::Uuid;
 
-use crate::session_state::TypedSession;
+use crate::{session_state::TypedSession, utils::{e500, see_other}};
 
-fn e500<ErrorType>(e: ErrorType) -> actix_web::Error
-where
-    ErrorType: std::fmt::Debug + std::fmt::Display + 'static,
-{
-    actix_web::error::ErrorInternalServerError(e)
-}
 
 #[tracing::instrument(
     name = "Admin dashboard", 
@@ -27,9 +21,7 @@ pub async fn admin_dashboard(
         tracing::Span::current().record("user_id", &display(&user_id));
         get_username(user_id, &pool).await.map_err(e500)?
     } else {
-        return Ok(HttpResponse::SeeOther()
-            .insert_header((LOCATION, "/login"))
-            .finish());
+        return Ok(see_other("/login"));
     };
     tracing::Span::current().record("username", &display(&username));
     let body = format!(

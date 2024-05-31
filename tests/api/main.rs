@@ -1,4 +1,5 @@
-pub mod admin_dashboard;
+mod admin_dashboard;
+mod admin_password;
 mod health_check;
 mod helpers;
 mod login;
