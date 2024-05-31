@@ -32,9 +32,12 @@ pub async fn admin_dashboard(
         <meta http-equiv="content-type" content="text/html; charset=utf-8">
         <title>Admin dashboard</title>
         </head>
-
         <body>
             <p>Welcome {username}</p>
+            <p>Available action:</p>
+            <ol>
+                <li><a href="/admin/password">Change password</a></li>
+            </ol>
         </body>
     </html>
     "#
