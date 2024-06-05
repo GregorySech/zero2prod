@@ -48,8 +48,15 @@ In the spirit of the book's chapter I didn't encode the properties of a well-for
 
 # Exercises
 - [x] Send confirmation emails when subscribing email in pending confirmation status.
-- [ ] Check behaviour of multiple calls to subscriptions/confirm endpoint.
+- [ ] Check behaviour of multiple calls to `/subscriptions/confirm` endpoint.
 - [ ] Handle non-existent confirmation tokens.
 - [ ] Validate incoming confirmation tokens.
 - [ ] Email templating.
 - [ ] Implement OWASP's requirements for password strength.
+- [ ] Add a "`Send a newsletter issue`" link to the admin dashboard.
+- [ ] Add an HTML form at GET `/admin/newsletters` to submit the new issue.
+- [ ] Adapt POST `/newsletters` to process the form data.
+  - [ ] Change the route under `/admin/newsletters`.
+  - [ ] Migrate authentication from 'Basic' to session-based.
+  - [ ] Use the Form extractor instead of the Json extractor to handle the request body.
+  - [ ] Adapt the test suite.
