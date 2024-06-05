@@ -1,28 +1,20 @@
-use actix_web::{http::header::ContentType, HttpResponse};
+use actix_web::{http::header::ContentType, web, HttpResponse};
 use actix_web_flash_messages::{IncomingFlashMessages, Level};
 use std::fmt::Write;
 
-use crate::{
-    session_state::TypedSession,
-    utils::{e500, see_other},
-};
+use crate::authentication::UserId;
 
 #[tracing::instrument(
     name = "Change password form",
-    skip(session, flash_messages),
+    skip(flash_messages),
     fields(user_id=tracing::field::Empty)
 )]
 pub async fn change_password_form(
     flash_messages: IncomingFlashMessages,
-    session: TypedSession,
+    user_id: web::ReqData<UserId>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let user_id_mb = session.get_user_id().map_err(e500)?;
-    match user_id_mb {
-        None => return Ok(see_other("/login")),
-        Some(user_id) => {
-            tracing::Span::current().record("user_id", &tracing::field::display(&user_id))
-        }
-    };
+    let user_id = user_id.into_inner();
+    tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
 
     let mut error_html = String::new();
     for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {

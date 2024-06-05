@@ -4,26 +4,20 @@ use sqlx::PgPool;
 use tracing::field::display;
 use uuid::Uuid;
 
-use crate::{
-    session_state::TypedSession,
-    utils::{e500, see_other},
-};
+use crate::{authentication::UserId, utils::e500};
 
 #[tracing::instrument(
     name = "Admin dashboard", 
-    skip(session, pool),
+    skip(pool),
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
 pub async fn admin_dashboard(
-    session: TypedSession,
+    user_id: web::ReqData<UserId>,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let username = if let Some(user_id) = session.get_user_id().map_err(e500)? {
-        tracing::Span::current().record("user_id", &display(&user_id));
-        get_username(user_id, &pool).await.map_err(e500)?
-    } else {
-        return Ok(see_other("/login"));
-    };
+    let user_id = user_id.into_inner();
+    tracing::Span::current().record("user_id", &display(&user_id));
+    let username = get_username(*user_id, &pool).await.map_err(e500)?;
     tracing::Span::current().record("username", &display(&username));
     let body = format!(
         r#"
