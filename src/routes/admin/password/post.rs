@@ -1,15 +1,11 @@
-use std::ops::Deref;
-
-use actix_web::{error::InternalError, web, HttpResponse};
+use actix_web::{web, HttpResponse};
 use actix_web_flash_messages::FlashMessage;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::{
     authentication::{validate_credentials, AuthError, Credentials, UserId},
     routes::get_username,
-    session_state::TypedSession,
     utils::{e500, see_other},
 };
 
