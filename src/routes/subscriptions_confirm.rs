@@ -2,10 +2,12 @@ use actix_web::{
     web::{Data, Query},
     HttpResponse, Responder, ResponseError,
 };
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use reqwest::StatusCode;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
+
+use crate::domain::SubscriberStatus;
 
 use super::error_chain_fmt;
 
@@ -16,11 +18,28 @@ pub async fn confirm(
     pool: Data<PgPool>,
 ) -> Result<impl Responder, ConfirmationError> {
     let subscription_token = _parameters.0.subscription_token;
-    let subscriber_id = subscriber_id_from_token(subscription_token, &pool).await?;
 
-    confirm_subscriber(subscriber_id, &pool)
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire database transaction.")?;
+
+    let subscriber_id = subscriber_id_from_token(subscription_token, &mut transaction).await?;
+
+    let status = subscriber_status_from_id(subscriber_id, &mut transaction).await?;
+
+    match status {
+        SubscriberStatus::Confirmed => Err(ConfirmationError::AlreadySubscribed("Subscription already confirmed".to_string())),
+        _ => Ok(())
+    }?;
+
+    confirm_subscriber(subscriber_id, &mut transaction)
         .await
         .context("Failed to change subscription status.")?;
+
+    transaction.commit()
+    .await
+    .context("Failed to commit transaction.")?;
 
     Ok(HttpResponse::Ok())
 }
@@ -31,12 +50,32 @@ pub struct ConfirmationParameters {
 }
 
 #[tracing::instrument(
+    name = "Get the subscriber status given the subscription id!",
+    skip(transaction, subscription_id)
+)]
+async fn subscriber_status_from_id(
+    subscription_id: Uuid,
+    transaction: &mut Transaction<'_, Postgres>,
+) -> Result<SubscriberStatus, ConfirmationError> {
+
+    let result = sqlx::query!(
+        "SELECT status
+         FROM subscriptions
+         WHERE id = $1
+         FOR UPDATE
+         ", subscription_id)
+         .fetch_one(&mut **transaction).await.context("Failed to retrieve subscription status.")?;
+
+    SubscriberStatus::parse(&result.status).map_err(|e| ConfirmationError::UnexpectedError(anyhow!(e)))
+}
+
+#[tracing::instrument(
     name = "Get subscriber_id from the confirmation token!",
-    skip(pool, subscription_token)
+    skip(transaction, subscription_token)
 )]
 async fn subscriber_id_from_token(
     subscription_token: String,
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
 ) -> Result<Uuid, ConfirmationError> {
     let result = sqlx::query!(
         "SELECT subscriber_id
@@ -44,7 +83,7 @@ async fn subscriber_id_from_token(
     WHERE subscription_token = $1",
         subscription_token
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **transaction)
     .await
     .context("Failed to retrieve subscription confirmation.")?;
 
@@ -56,15 +95,15 @@ async fn subscriber_id_from_token(
     }
 }
 
-#[tracing::instrument(name = "Changing subscriber status", skip(subscriber_id, pool))]
-async fn confirm_subscriber(subscriber_id: Uuid, pool: &PgPool) -> Result<(), sqlx::Error> {
+#[tracing::instrument(name = "Changing subscriber status", skip(subscriber_id, transaction))]
+async fn confirm_subscriber(subscriber_id: Uuid, transaction: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         UPDATE subscriptions SET status = 'confirmed' WHERE id = $1
         "#,
         subscriber_id
     )
-    .execute(pool)
+    .execute(&mut **transaction)
     .await?;
     Ok(())
 }
@@ -73,6 +112,8 @@ async fn confirm_subscriber(subscriber_id: Uuid, pool: &PgPool) -> Result<(), sq
 pub enum ConfirmationError {
     #[error("{0}")]
     ValidationError(String),
+    #[error("{0}")]
+    AlreadySubscribed(String),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
@@ -88,6 +129,7 @@ impl ResponseError for ConfirmationError {
         match self {
             ConfirmationError::ValidationError(_) => StatusCode::UNAUTHORIZED,
             ConfirmationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ConfirmationError::AlreadySubscribed(_) => StatusCode::GONE,
         }
     }
 }
