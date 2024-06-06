@@ -104,3 +104,31 @@ async fn clicking_on_the_confirmation_link_confirms_the_user() {
         "After following confirmation link user should have confirmed status."
     );
 }
+
+/// Confirming the user status should happen once. 
+/// After the first time the confirmation should no longer be available.
+#[tokio::test]
+async fn confirmation_link_should_be_gone_for_confirmed_users() {
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into()).await;
+    let email_request = &app.email_server.received_requests().await.unwrap()[0];
+    let confirmation_links = app.get_confirmation_links(email_request);
+
+    let response = reqwest::get(confirmation_links.html.clone()).await.unwrap();
+
+    assert_eq!(response.status().as_u16(), 200);
+
+    // Second click
+    let response = reqwest::get(confirmation_links.html.clone()).await.unwrap();
+
+    assert_eq!(response.status().as_u16(), 410);
+}

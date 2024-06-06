@@ -83,7 +83,8 @@ In this way the exposed methods can be tested to call the appropriate number of 
 
 # Exercises
 - [x] Send confirmation emails when subscribing email in pending confirmation status.
-- [ ] Check behaviour of multiple calls to `/subscriptions/confirm` endpoint.
+- [ ] Check behaviour of multiple calls to `/subscriptions/confirm` endpoint.  
+Multiple calls resulted in a 200 status response. This could be fine but I'd rather have the confirmation fail after the status is already confirmed. A status 410 GONE seems to be the most fitting because a the confirmation action for that token is no longer available. So I've tested this behavior in the `confirmation_link_should_be_gone_for_confirmed_users` test.
 - [ ] Handle non-existent confirmation tokens.
 - [ ] Validate incoming confirmation tokens.
 - [ ] Email templating.
