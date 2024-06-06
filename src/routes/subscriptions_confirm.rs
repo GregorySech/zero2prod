@@ -29,17 +29,20 @@ pub async fn confirm(
     let status = subscriber_status_from_id(subscriber_id, &mut transaction).await?;
 
     match status {
-        SubscriberStatus::Confirmed => Err(ConfirmationError::AlreadySubscribed("Subscription already confirmed".to_string())),
-        _ => Ok(())
+        SubscriberStatus::Confirmed => Err(ConfirmationError::AlreadySubscribed(
+            "Subscription already confirmed".to_string(),
+        )),
+        _ => Ok(()),
     }?;
 
     confirm_subscriber(subscriber_id, &mut transaction)
         .await
         .context("Failed to change subscription status.")?;
 
-    transaction.commit()
-    .await
-    .context("Failed to commit transaction.")?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit transaction.")?;
 
     Ok(HttpResponse::Ok())
 }
@@ -57,16 +60,20 @@ async fn subscriber_status_from_id(
     subscription_id: Uuid,
     transaction: &mut Transaction<'_, Postgres>,
 ) -> Result<SubscriberStatus, ConfirmationError> {
-
     let result = sqlx::query!(
         "SELECT status
          FROM subscriptions
          WHERE id = $1
          FOR UPDATE
-         ", subscription_id)
-         .fetch_one(&mut **transaction).await.context("Failed to retrieve subscription status.")?;
+         ",
+        subscription_id
+    )
+    .fetch_one(&mut **transaction)
+    .await
+    .context("Failed to retrieve subscription status.")?;
 
-    SubscriberStatus::parse(&result.status).map_err(|e| ConfirmationError::UnexpectedError(anyhow!(e)))
+    SubscriberStatus::parse(&result.status)
+        .map_err(|e| ConfirmationError::UnexpectedError(anyhow!(e)))
 }
 
 #[tracing::instrument(
@@ -96,7 +103,10 @@ async fn subscriber_id_from_token(
 }
 
 #[tracing::instrument(name = "Changing subscriber status", skip(subscriber_id, transaction))]
-async fn confirm_subscriber(subscriber_id: Uuid, transaction: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
+async fn confirm_subscriber(
+    subscriber_id: Uuid,
+    transaction: &mut Transaction<'_, Postgres>,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         UPDATE subscriptions SET status = 'confirmed' WHERE id = $1

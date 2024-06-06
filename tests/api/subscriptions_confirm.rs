@@ -105,7 +105,7 @@ async fn clicking_on_the_confirmation_link_confirms_the_user() {
     );
 }
 
-/// Confirming the user status should happen once. 
+/// Confirming the user status should happen once.
 /// After the first time the confirmation should no longer be available.
 #[tokio::test]
 async fn confirmation_link_should_be_gone_for_confirmed_users() {
