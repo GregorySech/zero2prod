@@ -86,7 +86,8 @@ In this way the exposed methods can be tested to call the appropriate number of 
 - [x] Check behaviour of multiple calls to `/subscriptions/confirm` endpoint.  
 Multiple calls resulted in a 200 status response. This could be fine but I'd rather have the confirmation fail after the status is already confirmed. A status 410 GONE seems to be the most fitting because a the confirmation action for that token is no longer available. So I've tested this behavior in the `confirmation_link_should_be_gone_for_confirmed_users` test.  
 The test passes thanks to the `zero2prod::routes::subscriptions_confirm::subscriber_status_from_id` function. The route also uses a transaction and a "SELECT FOR UPDATE" query to ensure that the `subscriptions` table row is locked between the status check and update.   
-- [ ] Handle non-existent confirmation tokens.
+- [x] Handle non-existent confirmation tokens.  
+Asking for confirmation using an unexisting confirmation token results in an UNAUTHENTICATED response. Tested into the `confirming_a_subscription_with_an_unexisting_token_is_unauthorized` test.
 - [ ] Validate incoming confirmation tokens.
 - [ ] Email templating.
 - [ ] Implement OWASP's requirements for password strength.

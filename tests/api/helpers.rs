@@ -47,6 +47,14 @@ impl TestApp {
         ConfirmationLinks { html, plain_text }
     }
 
+    pub async fn confirm_token(&self, confirmation_token: String) -> Response {
+        let confirmation_link = format!(
+            "{}/subscriptions/confirm?subscription_token={}",
+            self.address, confirmation_token
+        );
+        self.api_client.get(confirmation_link).send().await.unwrap()
+    }
+
     pub async fn post_subscriptions(&self, body: String) -> Response {
         let expect_body = format!("Failed to execute subscriptions request for body {}.", body);
 

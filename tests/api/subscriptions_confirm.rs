@@ -1,7 +1,9 @@
+use reqwest::StatusCode;
 use wiremock::{
     matchers::{method, path},
     Mock, ResponseTemplate,
 };
+use zero2prod::routes::generate_subscription_token;
 
 use crate::helpers::spawn_app;
 
@@ -125,10 +127,18 @@ async fn confirmation_link_should_be_gone_for_confirmed_users() {
 
     let response = reqwest::get(confirmation_links.html.clone()).await.unwrap();
 
-    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(response.status().as_u16(), StatusCode::OK);
 
     // Second click
     let response = reqwest::get(confirmation_links.html.clone()).await.unwrap();
 
-    assert_eq!(response.status().as_u16(), 410);
+    assert_eq!(response.status().as_u16(), StatusCode::GONE);
+}
+
+#[tokio::test]
+async fn confirming_a_subscription_with_an_unexisting_token_is_unauthorized() {
+    let app = spawn_app().await;
+    let fake_token = generate_subscription_token();
+    let response = app.confirm_token(fake_token).await;
+    assert_eq!(response.status().as_u16(), StatusCode::UNAUTHORIZED);
 }
