@@ -30,6 +30,7 @@ if [[ -z "${SKIP_DOCKER}" ]]
 then
 # Launch postgres using Docker
 docker run \
+--name zero2prod_postgres \
 -e POSTGRES_USER=${DB_USER} \
 -e POSTGRES_PASSWORD=${DB_PASSWORD} \
 -e POSTGRES_DB=${DB_NAME} \
