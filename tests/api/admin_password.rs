@@ -34,18 +34,13 @@ async fn you_must_provide_matching_passwords_to_change_your_password() {
     let new_password = Uuid::new_v4().to_string();
     let new_different_password = Uuid::new_v4().to_string();
 
-    let login_body = serde_json::json!({
-        "username": &app.test_user.username,
-        "password": &app.test_user.password,
-    });
-
     let change_password_body = serde_json::json!({
         "current_password": &app.test_user.password,
         "new_password": &new_password,
         "new_password_check": &new_different_password,
     });
 
-    app.post_login(&login_body).await;
+    app.login_with_test_user().await;
 
     let response = app.post_change_password(&change_password_body).await;
 
@@ -65,18 +60,13 @@ async fn you_must_provide_the_correct_password_to_change_your_password() {
     let new_password = Uuid::new_v4().to_string();
     let wrong_password = Uuid::new_v4().to_string();
 
-    let login_body = serde_json::json!({
-        "username": &app.test_user.username,
-        "password": &app.test_user.password,
-    });
-
     let change_password_body = serde_json::json!({
         "current_password": &wrong_password,
         "new_password": &new_password,
         "new_password_check": &new_password,
     });
 
-    app.post_login(&login_body).await;
+    app.login_with_test_user().await;
 
     let response = app.post_change_password(&change_password_body).await;
 

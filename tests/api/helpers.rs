@@ -27,6 +27,17 @@ pub struct TestApp {
 }
 
 impl TestApp {
+
+    pub async fn login_with_test_user(&self) -> Response {
+        let login_body = serde_json::json!({
+            "username": &self.test_user.username,
+            "password": &self.test_user.password,
+        });
+    
+        // Login
+        self.post_login(&login_body).await
+    }
+
     pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
         let email_body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
 
