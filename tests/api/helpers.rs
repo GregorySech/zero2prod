@@ -142,6 +142,14 @@ impl TestApp {
             .expect("Failed to execute request to get the send newsletters form!")
     }
 
+    pub async fn get_admin_send_newsletters_html(&self) -> String {
+        self.get_admin_send_newsletters()
+            .await
+            .text()
+            .await
+            .unwrap()
+    }
+
     pub async fn post_change_password<Body>(&self, body: &Body) -> reqwest::Response
     where
         Body: serde::Serialize,
