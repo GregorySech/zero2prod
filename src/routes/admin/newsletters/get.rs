@@ -2,7 +2,7 @@ use actix_web::{http::header::ContentType, HttpResponse};
 use actix_web_flash_messages::{IncomingFlashMessages, Level};
 use std::fmt::Write;
 
-#[tracing::instrument(name = "Change password form", skip(flash_messages))]
+#[tracing::instrument(name = "Send newsletter form", skip(flash_messages))]
 pub async fn send_newsletter_form(
     flash_messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, actix_web::Error> {
@@ -25,6 +25,15 @@ pub async fn send_newsletter_form(
         <h1>Send Newsletter</h1>
         {error_html}
         <form action="/admin/newsletters" method="post">
+            <label for="title">
+                Issue Title
+            </label> <br>
+            <input 
+                id="title"
+                name="title"
+                type="text">
+            </textarea>
+            <br>
             <label for="html_content">
                 HTML content
             </label> <br>
