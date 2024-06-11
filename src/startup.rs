@@ -1,5 +1,5 @@
 use crate::{
-    authentication::reject_anonymous_users,
+    authentication::{users_basic_authentication, users_session_authentication},
     configuration::{DatabaseSettings, Settings},
     email_client::EmailAPIClient,
     routes::{
@@ -106,7 +106,7 @@ async fn run(
             .route("/", web::get().to(home))
             .service(
                 web::scope("/admin")
-                    .wrap(from_fn(reject_anonymous_users))
+                    .wrap(from_fn(users_session_authentication))
                     .route("/dashboard", web::get().to(admin_dashboard))
                     .route("/password", web::get().to(change_password_form))
                     .route("/password", web::post().to(change_password))
@@ -116,7 +116,11 @@ async fn run(
             .route("/health_check", web::get().to(health_check))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
-            .route("/newsletters", web::post().to(publish_newsletters))
+            .service(
+                web::scope("/newsletters")
+                    .wrap(from_fn(users_basic_authentication))
+                    .route("", web::post().to(publish_newsletters)),
+            )
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .app_data(db_pool.clone())
