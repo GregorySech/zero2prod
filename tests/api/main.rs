@@ -1,4 +1,5 @@
 mod admin_dashboard;
+mod admin_newsletter;
 mod admin_password;
 mod change_password;
 mod health_check;

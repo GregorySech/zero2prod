@@ -27,13 +27,12 @@ pub struct TestApp {
 }
 
 impl TestApp {
-
     pub async fn login_with_test_user(&self) -> Response {
         let login_body = serde_json::json!({
             "username": &self.test_user.username,
             "password": &self.test_user.password,
         });
-    
+
         // Login
         self.post_login(&login_body).await
     }
@@ -133,6 +132,14 @@ impl TestApp {
 
     pub async fn get_change_password_html(&self) -> String {
         self.get_change_password().await.text().await.unwrap()
+    }
+
+    pub async fn get_admin_send_newsletters(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/newsletters", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request to get the send newsletters form!")
     }
 
     pub async fn post_change_password<Body>(&self, body: &Body) -> reqwest::Response
