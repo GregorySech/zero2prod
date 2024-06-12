@@ -7,17 +7,20 @@ use anyhow::Context;
 use reqwest::{header::HeaderValue, StatusCode};
 use sqlx::PgPool;
 
-use crate::{authentication::UserId, domain::SubscriberEmail, email_client::EmailAPIClient};
+use crate::{
+    authentication::UserId, domain::get_confirmed_subscribers, email_client::EmailAPIClient,
+};
 
 use super::error_chain_fmt;
 
 #[tracing::instrument(name = "Publish a newsletter issue", skip(body, pool, email_client))]
 pub async fn publish_newsletters(
-    body: web::Json<BodyData>,
+    body: web::Json<PublishData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailAPIClient>,
     _user_id: web::Data<UserId>,
 ) -> Result<impl Responder, PublishError> {
+    let body = body.0;
     let subscribers = get_confirmed_subscribers(&pool)
         .await
         .context("Failed to retrieve subscribers")?;
@@ -75,7 +78,7 @@ impl ResponseError for PublishError {
 }
 
 #[derive(serde::Deserialize)]
-pub struct BodyData {
+pub struct PublishData {
     title: String,
     content: Content,
 }
@@ -84,31 +87,4 @@ pub struct BodyData {
 pub struct Content {
     html: String,
     text: String,
-}
-
-struct ConfirmedSubscriber {
-    email: SubscriberEmail,
-}
-
-#[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
-async fn get_confirmed_subscribers(
-    pool: &PgPool,
-) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
-    let confirmed_subs = sqlx::query!(
-        r#"
-    SELECT email
-    FROM subscriptions
-    WHERE status = 'confirmed'
-    "#
-    )
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(|r| match SubscriberEmail::parse(r.email) {
-        Ok(email) => Ok(ConfirmedSubscriber { email }),
-        Err(error) => Err(anyhow::anyhow!(error)),
-    })
-    .collect();
-
-    Ok(confirmed_subs)
 }
