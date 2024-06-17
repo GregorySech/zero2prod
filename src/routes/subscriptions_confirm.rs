@@ -12,12 +12,12 @@ use crate::domain::SubscriberStatus;
 use super::error_chain_fmt;
 
 /// Endpoint for the subscription confirmation token. Checks if the subscription token is associated with a subscription and confirms is.
-#[tracing::instrument(name = "Confirm a pending subscriber", skip(_parameters))]
+#[tracing::instrument(name = "Confirm a pending subscriber", skip(parameters, pool))]
 pub async fn confirm(
-    _parameters: Query<ConfirmationParameters>,
+    parameters: Query<ConfirmationParameters>,
     pool: Data<PgPool>,
 ) -> Result<impl Responder, ConfirmationError> {
-    let subscription_token = _parameters.0.subscription_token;
+    let subscription_token = parameters.0.subscription_token;
 
     let mut transaction = pool
         .begin()
