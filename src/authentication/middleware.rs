@@ -55,6 +55,7 @@ impl ResponseError for BasicAuthError {
 }
 
 /// Rejects users that are not authenticated using session-based authentication.
+#[tracing::instrument(name = "User Session Authentication", skip(req, next))]
 pub async fn users_session_authentication(
     mut req: ServiceRequest,
     next: Next<impl MessageBody>,
@@ -78,6 +79,7 @@ pub async fn users_session_authentication(
 }
 
 /// Rejects users that are not authenticated using basic authentication.
+#[tracing::instrument(name = "User Basic Authentication", skip(pool, req, next))]
 pub async fn users_basic_authentication(
     pool: web::Data<PgPool>,
     req: ServiceRequest,
