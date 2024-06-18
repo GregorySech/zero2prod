@@ -90,7 +90,7 @@ impl TestApp {
             .expect("Request failed!")
     }
 
-    pub async fn post_form_newsletters(&self, body: &Vec<(&str, &str)>) -> Response {
+    pub async fn post_form_newsletters(&self, body: Value) -> Response {
         self.api_client
             .post(&format!("{}/admin/newsletters", self.address))
             .form(&body)

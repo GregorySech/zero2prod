@@ -48,13 +48,14 @@ async fn form_newsletters_are_delivered_to_confirmed_subscribers() {
         .mount(&app.email_server)
         .await;
 
-    let newsletter_request_body = vec![
-        ("title", "Newsletter title"),
-        ("html_content", "<p>HTML body!</p>"),
-        ("text_content", "Plain text body"),
-    ];
+    let newsletter_request_body = serde_json::json!(
+    {
+        "title": "Newsletter title",
+        "html_content": "<p>HTML body!</p>",
+        "text_content": "Plain text body",
+    });
 
-    let response = app.post_form_newsletters(&newsletter_request_body).await;
+    let response = app.post_form_newsletters(newsletter_request_body).await;
 
     assert_eq!(response.status().as_u16(), 200);
 }
