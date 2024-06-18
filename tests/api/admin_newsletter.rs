@@ -59,3 +59,34 @@ async fn form_newsletters_are_delivered_to_confirmed_subscribers() {
 
     assert_eq!(response.status().as_u16(), 200);
 }
+
+#[tokio::test]
+async fn form_newsletter_creation_is_idempotent() {
+    let app = spawn_app().await;
+    app.create_confirmed_subscriber().await;
+    app.login_with_test_user().await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1) // Should deliver only one email for the same idempotency key.
+        .mount(&app.email_server)
+        .await;
+
+    let newsletter_request_body = serde_json::json!(
+    {
+        "title": "Newsletter title",
+        "html_content": "<p>HTML body!</p>",
+        "text_content": "Plain text body",
+        "idempotency_key": uuid::Uuid::new_v4().to_string(),
+    });
+
+    let response = app
+        .post_form_newsletters(newsletter_request_body.clone())
+        .await;
+    // I do not redirect to the form, I have a landing page.
+    assert_eq!(response.status().as_u16(), 200);
+
+    let response = app.post_form_newsletters(newsletter_request_body).await;
+    assert_eq!(response.status().as_u16(), 200);
+}
