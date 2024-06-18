@@ -5,7 +5,10 @@ use reqwest::{Response, Url};
 use serde_json::Value;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
-use wiremock::MockServer;
+use wiremock::{
+    matchers::{method, path},
+    Mock, MockServer, ResponseTemplate,
+};
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
     startup::{get_connection_pool, Application},
@@ -82,6 +85,15 @@ impl TestApp {
             .post(&format!("{}/newsletters", self.address))
             .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
+            .send()
+            .await
+            .expect("Request failed!")
+    }
+
+    pub async fn post_form_newsletters(&self, body: &Vec<(&str, &str)>) -> Response {
+        self.api_client
+            .post(&format!("{}/admin/newsletters", self.address))
+            .form(&body)
             .send()
             .await
             .expect("Request failed!")
@@ -168,6 +180,41 @@ impl TestApp {
             .send()
             .await
             .expect("Failed to send logout request.")
+    }
+
+    pub async fn create_unconfirmed_subscriber(&self) -> ConfirmationLinks {
+        let body = "name=gregory&email=example@gmail.com";
+
+        let _guard = Mock::given(path("/email"))
+            .and(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .named("Create unconfirmed subscriber")
+            .expect(1)
+            .mount_as_scoped(&self.email_server)
+            .await;
+
+        self.post_subscriptions(body.into())
+            .await
+            .error_for_status()
+            .unwrap();
+
+        let email_request = &self
+            .email_server
+            .received_requests()
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        self.get_confirmation_links(email_request)
+    }
+
+    pub async fn create_confirmed_subscriber(&self) {
+        let confirmation_link = self.create_unconfirmed_subscriber().await;
+        reqwest::get(confirmation_link.html)
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
     }
 }
 
