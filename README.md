@@ -93,8 +93,8 @@ Asking for confirmation using an unexisting confirmation token results in an UNA
 - [ ] Implement OWASP's requirements for password strength.
 - [x] Add a "`Send a newsletter issue`" link to the admin dashboard.
 - [x] Add an HTML form at GET `/admin/newsletters` to submit the new issue.
-- [ ] Adapt POST `/newsletters` to process the form data.
-  - [ ] Change the route under `/admin/newsletters`.
-  - [ ] Migrate authentication from 'Basic' to session-based.
-  - [ ] Use the Form extractor instead of the Json extractor to handle the request body.
-  - [ ] Adapt the test suite.
+- [x] Adapt POST `/newsletters` to process the form data.
+  - [x] Change the route under `/admin/newsletters`.
+  - [x] Migrate authentication from 'Basic' to session-based.
+  - [x] Use the Form extractor instead of the Json extractor to handle the request body.
+  - [x] Adapt the test suite.
