@@ -8,6 +8,13 @@ where
     actix_web::error::ErrorInternalServerError(e)
 }
 
+pub fn e400<ErrorType>(e: ErrorType) -> actix_web::Error
+where
+    ErrorType: std::fmt::Debug + std::fmt::Display + 'static,
+{
+    actix_web::error::ErrorBadRequest(e)
+}
+
 pub fn see_other(route: &str) -> HttpResponse {
     HttpResponse::SeeOther()
         .insert_header((LOCATION, route))

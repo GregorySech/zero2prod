@@ -6,17 +6,19 @@ use crate::{
     authentication::UserId,
     domain::{publish_issue, Content, IssueContent},
     email_client::EmailAPIClient,
-    utils::see_other,
+    idempotency::{get_saved_response, saved_response, IdempotencyKey},
+    utils::{e400, e500, see_other},
 };
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct IssueFormContent {
     title: String,
     html_content: String,
     text_content: String,
+    idempotency_key: String,
 }
 
-#[tracing::instrument(name = "Publish issue form submission", skip(body, pool, email_client))]
+#[tracing::instrument(name = "Publish issue form submission", skip(pool, email_client))]
 pub async fn publish_issue_form_submission(
     body: web::Form<IssueFormContent>,
     pool: web::Data<PgPool>,
@@ -31,29 +33,47 @@ pub async fn publish_issue_form_submission(
         },
     };
 
+    let idempotency_key: IdempotencyKey = body.idempotency_key.clone().try_into().map_err(e400)?;
+
+    if let Some(saved_response) = get_saved_response(&pool, &idempotency_key, **user_id)
+        .await
+        .map_err(e500)?
+    {
+        FlashMessage::info("The newsletter issue has been published!").send();
+        return Ok(saved_response);
+    }
+
     let publish_result = publish_issue(&issue_content, &email_client, &pool).await;
 
     match publish_result {
-        Err(_) => {
+        Err(err) => {
             FlashMessage::error("Error while publishing the issue!").send();
+            tracing::error!("Error while publishing the issue! {:?}", err);
             Ok(see_other("/admin/newsletters"))
         }
-        Ok(_) => Ok(HttpResponse::Ok().content_type(ContentType::html()).body(
-            r#"
-            <!DOCTYPE html>
-            <html lang="en">
-                <head>
-                    <meta http-equiv="content-type" content="text/htlm; charset=utf-8">
-                    <title>Newsletter published!</title>
-                </head>
-                <body>
-                    <h1>Your issue has been sent!</h1>
-                    <p>
-                        <a href="/admin/dashboard">&lt;- Dashboard</a>
-                        <a href="/admin/newsletters">&lt;- Send new Issue</a>
-                    </p>
-                </body>
-            </html>"#,
-        )),
+        Ok(_) => {
+            let response = HttpResponse::Ok().content_type(ContentType::html()).body(
+                r#"
+                <!DOCTYPE html>
+                <html lang="en">
+                    <head>
+                        <meta http-equiv="content-type" content="text/htlm; charset=utf-8">
+                        <title>Newsletter published!</title>
+                    </head>
+                    <body>
+                        <h1>Your issue has been sent!</h1>
+                        <p>
+                            <a href="/admin/dashboard">&lt;- Dashboard</a>
+                            <a href="/admin/newsletters">&lt;- Send new Issue</a>
+                        </p>
+                    </body>
+                </html>"#,
+            );
+            let response = saved_response(&pool, &idempotency_key, **user_id, response)
+                .await
+                .map_err(e500)?;
+
+            Ok(response)
+        }
     }
 }

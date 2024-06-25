@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use uuid::Uuid;
 use wiremock::{
     matchers::{method, path},
     Mock, ResponseTemplate,
@@ -53,6 +56,7 @@ async fn form_newsletters_are_delivered_to_confirmed_subscribers() {
         "title": "Newsletter title",
         "html_content": "<p>HTML body!</p>",
         "text_content": "Plain text body",
+        "idempotency_key": Uuid::new_v4().to_string(),
     });
 
     let response = app.post_form_newsletters(newsletter_request_body).await;
@@ -78,7 +82,7 @@ async fn form_newsletter_creation_is_idempotent() {
         "title": "Newsletter title",
         "html_content": "<p>HTML body!</p>",
         "text_content": "Plain text body",
-        "idempotency_key": uuid::Uuid::new_v4().to_string(),
+        "idempotency_key": Uuid::new_v4().to_string(),
     });
 
     let response = app
@@ -89,4 +93,35 @@ async fn form_newsletter_creation_is_idempotent() {
 
     let response = app.post_form_newsletters(newsletter_request_body).await;
     assert_eq!(response.status().as_u16(), 200);
+}
+
+#[tokio::test]
+async fn concurrent_form_submission_is_handled_gracefully() {
+    let app = spawn_app().await;
+    app.create_confirmed_subscriber().await;
+    app.login_with_test_user().await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1) // Should deliver only one email for the same idempotency key.
+        .mount(&app.email_server)
+        .await;
+
+
+    let newsletter_request_body = serde_json::json!(
+        {
+            "title": "Newsletter title",
+            "html_content": "<p>HTML body!</p>",
+            "text_content": "Plain text body",
+            "idempotency_key": Uuid::new_v4().to_string(),
+        });
+
+    let response1 = app.post_form_newsletters(newsletter_request_body.clone());
+    let response2 = app.post_form_newsletters(newsletter_request_body.clone());
+
+    let (response1, response2) = tokio::join!(response1, response2);
+    assert_eq!(response1.status().as_u16(), 200);
+    assert_eq!(response1.status(), response2.status());
+    assert_eq!(response1.text().await.unwrap(), response2.text().await.unwrap());
 }

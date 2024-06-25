@@ -6,6 +6,7 @@ use std::fmt::Write;
 pub async fn send_newsletter_form(
     flash_messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, actix_web::Error> {
+    let idempotency_key = uuid::Uuid::new_v4().to_string();
     let mut error_html = String::new();
     for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {
         writeln!(error_html, "<p><i>{}</i></p>", m.content()).unwrap();
@@ -50,6 +51,7 @@ pub async fn send_newsletter_form(
                 name="text_content">
             </textarea>
             <br>
+            <input hidden type="text" name="idempotency_key" value="{idempotency_key}">
             <button type="submit">Send Newsletter</button>
         </form>
         <p>
