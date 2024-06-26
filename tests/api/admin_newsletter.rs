@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use uuid::Uuid;
 use wiremock::{
     matchers::{method, path},
