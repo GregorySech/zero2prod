@@ -108,14 +108,13 @@ async fn concurrent_form_submission_is_handled_gracefully() {
         .mount(&app.email_server)
         .await;
 
-
     let newsletter_request_body = serde_json::json!(
-        {
-            "title": "Newsletter title",
-            "html_content": "<p>HTML body!</p>",
-            "text_content": "Plain text body",
-            "idempotency_key": Uuid::new_v4().to_string(),
-        });
+    {
+        "title": "Newsletter title",
+        "html_content": "<p>HTML body!</p>",
+        "text_content": "Plain text body",
+        "idempotency_key": Uuid::new_v4().to_string(),
+    });
 
     let response1 = app.post_form_newsletters(newsletter_request_body.clone());
     let response2 = app.post_form_newsletters(newsletter_request_body.clone());
@@ -123,5 +122,8 @@ async fn concurrent_form_submission_is_handled_gracefully() {
     let (response1, response2) = tokio::join!(response1, response2);
     assert_eq!(response1.status().as_u16(), 200);
     assert_eq!(response1.status(), response2.status());
-    assert_eq!(response1.text().await.unwrap(), response2.text().await.unwrap());
+    assert_eq!(
+        response1.text().await.unwrap(),
+        response2.text().await.unwrap()
+    );
 }

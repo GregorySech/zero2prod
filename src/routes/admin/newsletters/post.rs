@@ -6,7 +6,7 @@ use crate::{
     authentication::UserId,
     domain::{publish_issue, Content, IssueContent},
     email_client::EmailAPIClient,
-    idempotency::{get_saved_response, saved_response, IdempotencyKey},
+    idempotency::{save_response, try_processing, IdempotencyKey, NextAction},
     utils::{e400, e500, see_other},
 };
 
@@ -18,7 +18,14 @@ pub struct IssueFormContent {
     idempotency_key: String,
 }
 
-#[tracing::instrument(name = "Publish issue form submission", skip(pool, email_client))]
+fn success_message() -> FlashMessage {
+    FlashMessage::info("The newsletter issue has been published!")
+}
+
+#[tracing::instrument(name = "Publish issue form submission", 
+skip(pool, email_client, body),
+fields(idempotency_key = body.idempotency_key)
+)]
 pub async fn publish_issue_form_submission(
     body: web::Form<IssueFormContent>,
     pool: web::Data<PgPool>,
@@ -35,13 +42,16 @@ pub async fn publish_issue_form_submission(
 
     let idempotency_key: IdempotencyKey = body.idempotency_key.clone().try_into().map_err(e400)?;
 
-    if let Some(saved_response) = get_saved_response(&pool, &idempotency_key, **user_id)
+    let transaction = match try_processing(&pool, &idempotency_key, **user_id)
         .await
         .map_err(e500)?
     {
-        FlashMessage::info("The newsletter issue has been published!").send();
-        return Ok(saved_response);
-    }
+        NextAction::StartProcessing(t) => t,
+        NextAction::ReturnSavedResponse(saved_response) => {
+            success_message().send();
+            return Ok(saved_response);
+        }
+    };
 
     let publish_result = publish_issue(&issue_content, &email_client, &pool).await;
 
@@ -69,7 +79,7 @@ pub async fn publish_issue_form_submission(
                     </body>
                 </html>"#,
             );
-            let response = saved_response(&pool, &idempotency_key, **user_id, response)
+            let response = save_response(transaction, &idempotency_key, **user_id, response)
                 .await
                 .map_err(e500)?;
 
