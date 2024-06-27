@@ -6,6 +6,7 @@ use sqlx::postgres::PgSslMode;
 use sqlx::ConnectOptions;
 
 use crate::domain::SubscriberEmail;
+use crate::email_client::EmailAPIClient;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct ApplicationSettings {
@@ -131,5 +132,18 @@ impl DatabaseSettings {
             .password(self.password.expose_secret())
             .port(self.port)
             .ssl_mode(ssl_mode)
+    }
+}
+
+impl EmailAPIClientSettings {
+    pub fn client(self) -> EmailAPIClient {
+        let sender_email = self.sender().expect("Invalid sender email address.");
+        let timeout = self.timeout();
+        EmailAPIClient::new(
+            self.api_base_url,
+            sender_email,
+            self.authorization_token.into(),
+            timeout,
+        )
     }
 }

@@ -11,6 +11,8 @@ use wiremock::{
 };
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
+    email_client::EmailAPIClient,
+    issue_delivery_worker::{try_execute_delivery, ExecutionOutcome},
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -27,6 +29,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub port: u16,
     pub test_user: TestUser,
+    pub email_client: EmailAPIClient,
 }
 
 impl TestApp {
@@ -216,6 +219,18 @@ impl TestApp {
             .error_for_status()
             .unwrap();
     }
+
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue =
+                try_execute_delivery(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
+            {
+                break;
+            }
+        }
+    }
 }
 
 pub struct TestUser {
@@ -308,6 +323,7 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         port: application_port,
         test_user: TestUser::generate(),
+        email_client: configuration.email_client.client(),
     };
     test_app.test_user.store(&test_app.db_pool).await;
 

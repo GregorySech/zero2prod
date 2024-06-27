@@ -60,6 +60,8 @@ async fn form_newsletters_are_delivered_to_confirmed_subscribers() {
     let response = app.post_form_newsletters(newsletter_request_body).await;
 
     assert_eq!(response.status().as_u16(), 200);
+
+    app.dispatch_all_pending_emails().await;
 }
 
 #[tokio::test]
@@ -91,6 +93,8 @@ async fn form_newsletter_creation_is_idempotent() {
 
     let response = app.post_form_newsletters(newsletter_request_body).await;
     assert_eq!(response.status().as_u16(), 200);
+
+    app.dispatch_all_pending_emails().await;
 }
 
 #[tokio::test]
@@ -124,4 +128,6 @@ async fn concurrent_form_submission_is_handled_gracefully() {
         response1.text().await.unwrap(),
         response2.text().await.unwrap()
     );
+
+    app.dispatch_all_pending_emails().await;
 }

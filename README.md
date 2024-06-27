@@ -16,11 +16,20 @@ Table of contents:
       2. Flash messages
       3. Logout
       4. Password change
+      5. Fault-tolerant delivery
 2. Testing 
    1. integration testing using reqwest.
    2. unit testing locally using Rust's modules.
    3. parametric testing using proptest.
 3. Exercises
+
+# Comments
+I loved reading the book and making the project. The overall soundness of the software produced is great considering that I could only afford to put my commute time on it (more or less 1h per day).
+It's a great showcase of the technology and had never experienced a development experience so "smooth" even when figuring out some problems due to versions mismatched.
+
+This project brought joy back to backend development. The test driven experience is great and I think that Rust expressiveness and soundness greatly contributes to writing tests that are hard to get semantically wrong.
+
+The book is really well thought out and a life saver for people that needs to learn the profession or needs to be reminded the rush of doing a good job.
 
 # Features
 This section is meant to give a high level overview of how some features are implemented mentioning places in the codebase that should be checked out.
@@ -58,6 +67,11 @@ Logging out just confirms the authentication status of the user and purges the s
 ### Password change
 The password change flow starts at GET `/admin/password` and requires the user to provide the old password to ensure authentication again. The new password should be provided twice to avoid typing errors.
 
+### Fault-tolerant delivery
+**best-effort delivery** of the newsletter issues. This happens through asynchronous processing of the delivery with respect of the issue submission to the system.
+
+The processing happens through the `issue_delivery_worker` that is spawned on a different thread than the application ones. This worker queries a queue implemented in PostgreSQL. This allows for a very simple implementation of a distributed transaction as multiple worker processes would request for one task of the queue while skipping rows that are already locked by other transactions.
+
 # Testing
 Zero to Production philosophy is to follow the test-driven development approach to go from definition of any requirement to a minimal implementation that satisfies it.  
 
@@ -81,6 +95,13 @@ In the spirit of the book's chapter I didn't encode the properties of a well-for
 To test the implementation of `zero2prod::email_client` module without spamming emails through Postmark the unit tests leverage `wiremock::MockServer`. 
 In this way the exposed methods can be tested to call the appropriate number of times the correct endpoint of the external services. This strategy has also been used in integration tests for sending the newsletter issues and confirmation links.
 
+# Useful development commands
+## SQLX checks in offline mode!
+There are some queries in the test suite so also that target needs to be prepared for offline mode checks of the `sqlx` library in the CI/CD pipeline. 
+```sh
+cargo sqlx prepare --workspace -- --all-targets  
+```
+
 # Exercises
 - [x] Send confirmation emails when subscribing email in pending confirmation status.
 - [x] Check behaviour of multiple calls to `/subscriptions/confirm` endpoint.  
@@ -98,3 +119,7 @@ Asking for confirmation using an unexisting confirmation token results in an UNA
   - [x] Migrate authentication from 'Basic' to session-based.
   - [x] Use the Form extractor instead of the Json extractor to handle the request body.
   - [x] Adapt the test suite.
+  - [ ] Replicate best effort delivery through API too.
+- [ ] Enhancements to `issue_delivery_queue`
+  - [ ] Keep track of number of retries.
+  - [ ] Wait for retry.
