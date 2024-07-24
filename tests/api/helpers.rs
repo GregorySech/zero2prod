@@ -16,6 +16,7 @@ use zero2prod::{
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
 };
+
 pub struct ConfirmationLinks {
     pub html: reqwest::Url,
     pub plain_text: reqwest::Url,
